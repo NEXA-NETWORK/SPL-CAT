@@ -27,7 +27,7 @@ pub enum ErrorFactory {
     /// Only the program's owner is permitted.
     OwnerOnly,
 
-    #[msg("InvalidForeignEmitter")]
+    #[msg("InvalidForeignEmitter: Invalid Chain ID or Zero Address (Solana Chain ID is not allowed)")]
     /// Specified foreign emitter has a bad chain ID or zero address.
     InvalidForeignEmitter,
 

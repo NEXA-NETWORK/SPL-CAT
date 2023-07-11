@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use primitive_types::U256;
 use anchor_spl::token::{burn, mint_to, Burn, MintTo};
 
 pub use cat_struct::*;
@@ -11,7 +12,7 @@ pub mod context;
 pub mod error;
 pub mod state;
 
-declare_id!("Fg6PaFpoGXkYsidMpWTK6W2BeZ7FEfcYkg476zPFsLnS");
+declare_id!("9qPFRwhnnUpyB4bUFQizfwimVsaStaF3bUe1YNcjCEEF");
 
 #[program]
 pub mod spl_cat {
@@ -39,6 +40,7 @@ pub mod spl_cat {
         // so this value is stored as u8.
         config.finality = wormhole::Finality::Confirmed as u8;
 
+        // Mint Tokens
         // Mint the initial supply of tokens to the program's owner.
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_accounts = MintTo {
@@ -49,6 +51,64 @@ pub mod spl_cat {
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
         mint_to(cpi_ctx, initial_supply)?;
+
+        ctx.accounts.wormhole_emitter.bump = *ctx.bumps
+            .get("wormhole_emitter")
+            .ok_or(ErrorFactory::BumpNotFound)?;
+
+        // Now We will send a message to initialize the Sequence Tracker for future messages
+        {
+            // Pay the Fee
+            let fee = ctx.accounts.wormhole_bridge.fee();
+            if fee > 0 {
+                solana_program::program::invoke(
+                    &solana_program::system_instruction::transfer(
+                        &ctx.accounts.owner.key(),
+                        &ctx.accounts.wormhole_fee_collector.key(),
+                        fee,
+                    ),
+                    &ctx.accounts.to_account_infos(),
+                )?;
+            }
+            let wormhole_emitter = &ctx.accounts.wormhole_emitter;
+            let config = &ctx.accounts.config;
+
+            let mut payload: Vec<u8> = Vec::new();
+            CATSOLStructs::serialize(
+                &&CATSOLStructs::Alive {
+                    program_id: *ctx.program_id,
+                },
+                &mut payload,
+            )?;
+
+            wormhole::post_message(
+                CpiContext::new_with_signer(
+                    ctx.accounts.wormhole_program.to_account_info(),
+                    wormhole::PostMessage {
+                        config: ctx.accounts.wormhole_bridge.to_account_info(),
+                        message: ctx.accounts.wormhole_message.to_account_info(),
+                        emitter: wormhole_emitter.to_account_info(),
+                        sequence: ctx.accounts.wormhole_sequence.to_account_info(),
+                        payer: ctx.accounts.owner.to_account_info(),
+                        fee_collector: ctx.accounts.wormhole_fee_collector.to_account_info(),
+                        clock: ctx.accounts.clock.to_account_info(),
+                        rent: ctx.accounts.rent.to_account_info(),
+                        system_program: ctx.accounts.system_program.to_account_info(),
+                    },
+                    &[
+                        &[
+                            SEED_PREFIX_SENT,
+                            &wormhole::INITIAL_SEQUENCE.to_le_bytes()[..],
+                            &[*ctx.bumps.get("wormhole_message").ok_or(ErrorFactory::BumpNotFound)?],
+                        ],
+                        &[wormhole::SEED_PREFIX_EMITTER, &[wormhole_emitter.bump]],
+                    ],
+                ),
+                config.batch_id,
+                payload,
+                config.finality.into(),
+            )?;
+        }
 
         Ok(())
     }
@@ -61,15 +121,17 @@ pub mod spl_cat {
     ) -> Result<()> {
         // Foreign emitter cannot share the same Wormhole Chain ID as the
         // Solana Wormhole program's. And cannot register a zero address.
-        require!(
-            chain > 0 && chain != wormhole::CHAIN_ID_SOLANA && !address.iter().all(|&x| x == 0),
-            ErrorFactory::InvalidForeignEmitter,
-        );
+        // require!(
+        //     chain > 0 && chain != wormhole::CHAIN_ID_SOLANA && !address.iter().all(|&x| x == 0),
+        //     ErrorFactory::InvalidForeignEmitter,
+        // );
 
         // Save the emitter info into the ForeignEmitter account.
         let emitter = &mut ctx.accounts.foreign_emitter;
         emitter.chain = chain;
         emitter.address = address;
+
+        msg!("Registered foreign emitter: \nchain={}, \naddress={:?}", chain, address);
 
         // Done.
         Ok(())
@@ -81,9 +143,7 @@ pub mod spl_cat {
         recipient_chain: u16,
         recipient: [u8; 32],
     ) -> Result<()> {
-        // If Wormhole requires a fee before posting a message, we need to
-        // transfer lamports to the fee collector. Otherwise
-        // `wormhole::post_message` will fail.
+        // Pay the Fee
         let fee = ctx.accounts.wormhole_bridge.fee();
         if fee > 0 {
             solana_program::program::invoke(
@@ -107,17 +167,13 @@ pub mod spl_cat {
 
         burn(cpi_ctx, amount)?;
 
-        // Invoke `wormhole::post_message`.
-        //
-        // `wormhole::post_message` requires two signers: one for the emitter
-        // and another for the wormhole message data. Both of these accounts
-        // are owned by this program.
+        
     
         let wormhole_emitter = &ctx.accounts.wormhole_emitter;
         let config = &ctx.accounts.config;
 
-        let payload = CrossChainPayload {
-            amount,
+        let payload = CrossChainStruct {
+            amount: U256::from(amount),
             token_address: ctx.accounts.token_account.key().to_bytes(),
             token_chain: wormhole::CHAIN_ID_SOLANA,
             to_address: recipient,
@@ -128,7 +184,11 @@ pub mod spl_cat {
         let mut encoded_payload: Vec<u8> = Vec::new();
         cat_sol_struct.serialize(&mut encoded_payload)?;
 
-
+        // Invoke `wormhole::post_message`.
+        //
+        // `wormhole::post_message` requires two signers: one for the emitter
+        // and another for the wormhole message data. Both of these accounts
+        // are owned by this program.
         wormhole::post_message(
             CpiContext::new_with_signer(
                 ctx.accounts.wormhole_program.to_account_info(),
@@ -178,7 +238,7 @@ pub mod spl_cat {
             };
             let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
-            mint_to(cpi_ctx, payload.amount)?;
+            mint_to(cpi_ctx, payload.amount.as_u64())?;
 
             let mut serialized_payload: Vec<u8> = Vec::new();
             CATSOLStructs::CrossChainPayload { payload: payload.clone() }

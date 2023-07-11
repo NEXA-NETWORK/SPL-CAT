@@ -14,6 +14,9 @@ use crate::{
 /// AKA `b"sent"`.
 pub const SEED_PREFIX_SENT: &[u8; 4] = b"sent";
 
+pub const SEED_PREFIX_MINT: &'static [u8; 13] = b"spl_cat_token";
+
+
 #[derive(Accounts)]
 #[instruction(_decimals: u8)]
 /// Context used to initialize program data (i.e. config).
@@ -41,7 +44,7 @@ pub struct Initialize<'info> {
     /// Decimals are taken from the instruction.
     #[account(
         init, 
-        seeds = [b"solxmint_token".as_ref()],
+        seeds = [SEED_PREFIX_MINT],
         bump,
         payer = owner,
         mint::decimals = _decimals,
@@ -182,7 +185,7 @@ pub struct BridgeOut<'info> {
     /// Token Mint. The token that is bridged in.
     #[account(
         mut, 
-        seeds = [b"solxmint_token".as_ref()],
+        seeds = [SEED_PREFIX_MINT],
         bump
     )]
     pub token_mint: Account<'info, Mint>,
@@ -190,6 +193,7 @@ pub struct BridgeOut<'info> {
     // Token Account. Its an Associated Token Account that will hold the
     // tokens that are bridged in.
     #[account(
+        mut,
         associated_token::mint = token_mint,
         associated_token::authority = owner,
     )]
@@ -276,7 +280,7 @@ pub struct BridgeIn<'info> {
     /// Token Mint. The token that is bridged in.
     #[account(
         mut, 
-        seeds = [b"solxmint_token".as_ref()],
+        seeds = [SEED_PREFIX_MINT],
         bump
     )]
     pub token_mint: Account<'info, Mint>,
