@@ -1,8 +1,10 @@
 use anchor_lang::{prelude::Pubkey, AnchorDeserialize, AnchorSerialize};
-use primitive_types::U256;
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 
-#[derive(Clone, Debug)]
+// NOTE: Solana Uses Big Endian, Ethereum uses Little Endian
+// NOTE: Solana uses 8 byte u64, Ethereum uses 32 byte u256
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct CrossChainStruct {
     pub amount: U256,
     pub token_address: [u8; 32],
@@ -11,96 +13,31 @@ pub struct CrossChainStruct {
     pub to_chain: u16,
 }
 
-impl AnchorSerialize for CrossChainStruct {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        // amount
-        let mut amount = [0u8; 32];
-        self.amount.to_little_endian(&mut amount);
-        writer.write_all(&amount)?;
-        // token_address
-        writer.write_all(&self.token_address)?;
-        // token_chain
-        self.token_chain.serialize(writer)?;
-        // to_address
-        writer.write_all(&self.to_address)?;
-        // to_chain
-        self.to_chain.serialize(writer)?;
-        Ok(())
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy)]
+pub struct U256 {
+    bytes: [u8; 32],
+}
+
+impl From<u64> for U256 {
+    fn from(val: u64) -> Self {
+        let mut bytes = [0u8; 32];
+        bytes[24..].copy_from_slice(&val.to_le_bytes());
+        Self { bytes }
     }
 }
 
-impl AnchorDeserialize for CrossChainStruct {
-    fn deserialize(buf: &mut &[u8]) -> io::Result<Self> {
-        // amount
-        let mut amount = [0u8; 32];
-        buf.read_exact(&mut amount)?;
-        let amount = U256::from_little_endian(&amount);
-        // token_address
-        let mut token_address = [0u8; 32];
-        buf.read_exact(&mut token_address)?;
-        // token_chain
-        let token_chain = u16::deserialize(buf)?;
-        // to_address
-        let mut to_address = [0u8; 32];
-        buf.read_exact(&mut to_address)?;
-        // to_chain
-        let to_chain = u16::deserialize(buf)?;
-        Ok(CrossChainStruct {
-            amount,
-            token_address,
-            token_chain,
-            to_address,
-            to_chain,
-        })
+impl Into<u64> for U256 {
+    fn into(self) -> u64 {
+        let mut bytes = [0u8; 8];
+        bytes.copy_from_slice(&self.bytes[24..]);
+        u64::from_le_bytes(bytes)
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct SignatureVerification {
-    pub custodian: [u8; 20],
-    pub valid_till: U256,
-    pub signature: Vec<u8>,
-}
-
-impl AnchorSerialize for SignatureVerification {
-    fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        // custodian
-        writer.write_all(&self.custodian)?;
-        // valid_till
-        let mut valid_till = [0u8; 32];
-        self.valid_till.to_little_endian(&mut valid_till);
-        writer.write_all(&valid_till)?;
-        // signature
-        writer.write_all(&self.signature)?;
-        Ok(())
-    }
-}
-
-impl AnchorDeserialize for SignatureVerification {
-    fn deserialize(buf: &mut &[u8]) -> io::Result<Self> {
-        // custodian
-        let mut custodian = [0u8; 20];
-        buf.read_exact(&mut custodian)?;
-        // valid_till
-        let mut valid_till = [0u8; 32];
-        buf.read_exact(&mut valid_till)?;
-        let valid_till = U256::from_little_endian(&valid_till);
-        // signature
-        let mut signature = vec![0u8; 65];
-        buf.read_exact(&mut signature)?;
-        Ok(SignatureVerification {
-            custodian,
-            valid_till,
-            signature,
-        })
-    }
-}
-
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub enum CATSOLStructs {
     Alive { program_id: Pubkey },
     CrossChainPayload { payload: CrossChainStruct },
-    SignatureVerification { verification: SignatureVerification },
 }
 
 impl AnchorSerialize for CATSOLStructs {
@@ -108,16 +45,21 @@ impl AnchorSerialize for CATSOLStructs {
         match self {
             CATSOLStructs::Alive { program_id } => program_id.serialize(writer),
             CATSOLStructs::CrossChainPayload { payload } => payload.serialize(writer),
-            CATSOLStructs::SignatureVerification { verification } => verification.serialize(writer),
         }
     }
 }
 
+// Should have a Discriminator field, but we don't need it in this case as Alive is only sent once.
 impl AnchorDeserialize for CATSOLStructs {
-    fn deserialize(bytes: &mut &[u8]) -> io::Result<Self> {
-        // let program_id = Pubkey::deserialize(bytes)?;
-        let payload = CrossChainStruct::deserialize(bytes)?;
-        // let verification = SignatureVerification::deserialize(bytes)?;
-        Ok(CATSOLStructs::CrossChainPayload { payload })
+    fn deserialize(buf: &mut &[u8]) -> io::Result<Self> {
+        if buf.len() == 32 {
+            // Assume this is an Alive variant, as it's the size of a Pubkey
+            let program_id = Pubkey::deserialize(buf)?;
+            Ok(CATSOLStructs::Alive { program_id })
+        } else {
+            // Assume this is a CrossChainPayload variant otherwise
+            let payload = CrossChainStruct::deserialize(buf)?;
+            Ok(CATSOLStructs::CrossChainPayload { payload })
+        }
     }
 }

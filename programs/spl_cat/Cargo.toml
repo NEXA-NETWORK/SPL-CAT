@@ -25,7 +25,6 @@ toml_datetime="=0.6.1"
 solana-program = "=1.14.17"
 getrandom = { version = "0.2.9", features = ["custom"] }
 serde = { version = "1.0.164", features = ["derive"] }
-primitive-types = { version = "0.12.1", default-features = false }
 mpl-token-metadata = { version = "1.12.0",  features = ["no-entrypoint"] }
 anchor-spl = { git = "https://github.com/hmzakhalid/anchor", features=["metadata"] }
 anchor-lang = { git = "https://github.com/hmzakhalid/anchor", features =["init-if-needed"]}

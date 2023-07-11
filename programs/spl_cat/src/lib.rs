@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use primitive_types::U256;
 use anchor_spl::token::{burn, mint_to, Burn, MintTo};
 
 pub use cat_struct::*;
@@ -12,7 +11,7 @@ pub mod context;
 pub mod error;
 pub mod state;
 
-declare_id!("9qPFRwhnnUpyB4bUFQizfwimVsaStaF3bUe1YNcjCEEF");
+declare_id!("bhp6ce99vHEbpzRjUtpkLQpDQmzbHU5DFBX4pNLVrzb");
 
 #[program]
 pub mod spl_cat {
@@ -238,7 +237,8 @@ pub mod spl_cat {
             };
             let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
-            mint_to(cpi_ctx, payload.amount.as_u64())?;
+            let amount_u64: u64 = payload.amount.into();
+            mint_to(cpi_ctx, amount_u64)?;
 
             let mut serialized_payload: Vec<u8> = Vec::new();
             CATSOLStructs::CrossChainPayload { payload: payload.clone() }

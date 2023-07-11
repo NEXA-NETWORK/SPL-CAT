@@ -1,7 +1,12 @@
 use anchor_lang::prelude::*;
 
-
-pub const MESSAGE_MAX_LENGTH: usize = 76;
+// Amount: 32
+// Token Address: 32
+// Token Chain: 2
+// To Address: 32
+// To Chain: 2
+// Total: 100
+pub const MESSAGE_MAX_LENGTH: usize = 100;
 
 #[account]
 #[derive(Default)]
