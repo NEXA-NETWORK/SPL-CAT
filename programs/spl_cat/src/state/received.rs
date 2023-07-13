@@ -5,8 +5,9 @@ use anchor_lang::prelude::*;
 // Token Chain: 2
 // To Address: 32
 // To Chain: 2
-// Total: 100
-pub const MESSAGE_MAX_LENGTH: usize = 100;
+// Decimals: 1
+// Total: 101
+pub const MESSAGE_MAX_LENGTH: usize = 101;
 
 #[account]
 #[derive(Default)]

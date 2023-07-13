@@ -1,7 +1,7 @@
 # Testing.
 To run Local tests, we'll use the wormhole local validator.
 ```bash
-git clone https://github.com/barnjamin/wormhole-local-validator
+git clone https://github.com/hmzakhalid/wormhole-local-validator
 cd wormhole-local-validator
 npm install
 npm run evm 

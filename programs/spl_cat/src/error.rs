@@ -38,4 +38,8 @@ pub enum ErrorFactory {
     #[msg("InvalidMessage")]
     /// Deserialized message has unexpected payload type.
     InvalidMessage,
+
+    #[msg("The Off Chain ATA Address Does Not Match The Address of the Payload")]
+    /// Deserialized payload has unexpected payload type.
+    InvalidATAAddress,
 }

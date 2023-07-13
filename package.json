@@ -8,6 +8,7 @@
         "@coral-xyz/anchor": "^0.28.0",
         "@metaplex-foundation/js": "^0.19.4",
         "axios": "^1.4.0",
+        "bs58": "^5.0.0",
         "byteify": "2.0.10",
         "web3": "^4.0.2"
     },

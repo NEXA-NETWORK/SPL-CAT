@@ -1,5 +1,4 @@
 use anchor_lang::prelude::*;
-use anchor_spl::token::{burn, mint_to, Burn, MintTo};
 
 pub use cat_struct::*;
 pub use context::*;
@@ -17,6 +16,8 @@ declare_id!("bhp6ce99vHEbpzRjUtpkLQpDQmzbHU5DFBX4pNLVrzb");
 pub mod spl_cat {
     use super::*;
     use anchor_lang::solana_program;
+    use anchor_spl::associated_token;
+    use anchor_spl::token::{burn, mint_to, Burn, MintTo};
     use wormhole_anchor_sdk::wormhole;
 
     pub fn initialize(ctx: Context<Initialize>, _decimals: u8, initial_supply: u64) -> Result<()> {
@@ -51,7 +52,8 @@ pub mod spl_cat {
 
         mint_to(cpi_ctx, initial_supply)?;
 
-        ctx.accounts.wormhole_emitter.bump = *ctx.bumps
+        ctx.accounts.wormhole_emitter.bump = *ctx
+            .bumps
             .get("wormhole_emitter")
             .ok_or(ErrorFactory::BumpNotFound)?;
 
@@ -98,7 +100,10 @@ pub mod spl_cat {
                         &[
                             SEED_PREFIX_SENT,
                             &wormhole::INITIAL_SEQUENCE.to_le_bytes()[..],
-                            &[*ctx.bumps.get("wormhole_message").ok_or(ErrorFactory::BumpNotFound)?],
+                            &[*ctx
+                                .bumps
+                                .get("wormhole_message")
+                                .ok_or(ErrorFactory::BumpNotFound)?],
                         ],
                         &[wormhole::SEED_PREFIX_EMITTER, &[wormhole_emitter.bump]],
                     ],
@@ -112,7 +117,6 @@ pub mod spl_cat {
         Ok(())
     }
 
-
     pub fn register_emitter(
         ctx: Context<RegisterEmitter>,
         chain: u16,
@@ -120,17 +124,21 @@ pub mod spl_cat {
     ) -> Result<()> {
         // Foreign emitter cannot share the same Wormhole Chain ID as the
         // Solana Wormhole program's. And cannot register a zero address.
-        // require!(
-        //     chain > 0 && chain != wormhole::CHAIN_ID_SOLANA && !address.iter().all(|&x| x == 0),
-        //     ErrorFactory::InvalidForeignEmitter,
-        // );
+        require!(
+            chain > 0 && chain != wormhole::CHAIN_ID_SOLANA && !address.iter().all(|&x| x == 0),
+            ErrorFactory::InvalidForeignEmitter,
+        );
 
         // Save the emitter info into the ForeignEmitter account.
         let emitter = &mut ctx.accounts.foreign_emitter;
         emitter.chain = chain;
         emitter.address = address;
 
-        msg!("Registered foreign emitter: \nchain={}, \naddress={:?}", chain, address);
+        msg!(
+            "Registered foreign emitter: \nchain={}, \naddress={:?}",
+            chain,
+            address
+        );
 
         // Done.
         Ok(())
@@ -166,22 +174,27 @@ pub mod spl_cat {
 
         burn(cpi_ctx, amount)?;
 
-        
-    
         let wormhole_emitter = &ctx.accounts.wormhole_emitter;
         let config = &ctx.accounts.config;
+        msg!("Amount: {:?}", amount);
+        let amnt_u256 = U256::from(amount);
+        msg!("Amount: {:?}", amnt_u256);
 
         let payload = CrossChainStruct {
-            amount: U256::from(amount),
+            amount: amnt_u256,
             token_address: ctx.accounts.token_account.key().to_bytes(),
             token_chain: wormhole::CHAIN_ID_SOLANA,
             to_address: recipient,
             to_chain: recipient_chain,
+            token_decimals: ctx.accounts.token_mint.decimals,
         };
+        msg!("Payload: {:?}", payload);
 
         let cat_sol_struct = CATSOLStructs::CrossChainPayload { payload };
         let mut encoded_payload: Vec<u8> = Vec::new();
         cat_sol_struct.serialize(&mut encoded_payload)?;
+
+        msg!("Encoded Payload: {:?}", encoded_payload);
 
         // Invoke `wormhole::post_message`.
         //
@@ -223,12 +236,23 @@ pub mod spl_cat {
         Ok(())
     }
 
-
     pub fn bridge_in(ctx: Context<BridgeIn>, vaa_hash: [u8; 32]) -> Result<()> {
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
-            
+            msg!("Payload: {:?}", payload);
+            msg!("Address: {:?}", payload.to_address);
+
+            let ata_address = associated_token::get_associated_token_address(
+                &Pubkey::from(payload.to_address),
+                &ctx.accounts.token_mint.key(),
+            );
+
+            // Check if the ATA address matches the one in the payload
+            if ata_address != ctx.accounts.token_account.key() {
+                return Err(ErrorFactory::InvalidATAAddress.into());
+            }
+
             let cpi_program = ctx.accounts.token_program.to_account_info();
             let cpi_accounts = MintTo {
                 mint: ctx.accounts.token_mint.to_account_info(),
@@ -238,6 +262,7 @@ pub mod spl_cat {
             let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
             let amount_u64: u64 = payload.amount.into();
+            msg!("Amount: {:?}", amount_u64);
             mint_to(cpi_ctx, amount_u64)?;
 
             let mut serialized_payload: Vec<u8> = Vec::new();
