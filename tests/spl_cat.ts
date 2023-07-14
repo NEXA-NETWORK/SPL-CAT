@@ -1,8 +1,10 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { SplCat } from "../target/types/spl_cat";
+import { Metaplex } from "@metaplex-foundation/js";
+import { TOKEN_METADATA_PROGRAM_ID } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token"
+import { getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token"
 import { PublicKey } from "@solana/web3.js";
 import {
   getEmitterAddressEth,
@@ -13,7 +15,6 @@ import {
   CHAINS,
   ChainId,
   isBytes,
-
   parseVaa,
 } from '@certusone/wormhole-sdk';
 import { getWormholeCpiAccounts, getPostMessageCpiAccounts } from "@certusone/wormhole-sdk/lib/cjs/solana";
@@ -29,10 +30,11 @@ describe("spl_cat", () => {
   anchor.setProvider(provider);
 
   const program = anchor.workspace.SplCat as Program<SplCat>;
+  const metaplex = new Metaplex(provider.connection);
   const SPL_CAT_PID = program.programId;
   const CORE_BRIDGE_PID = "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o";
 
-  // For Testing we're going to use the Solana
+  // Make sure the Wormhole program is deployed
   const targetChainId = Buffer.alloc(2);
   targetChainId.writeUInt16LE(CHAINS.ethereum);
   const targetEmitter = PublicKey.findProgramAddressSync([Buffer.from("emitter")], SPL_CAT_PID)[0];
@@ -42,6 +44,9 @@ describe("spl_cat", () => {
 
   // The Token Mint we will use for testing
   const tokenMintPDA = PublicKey.findProgramAddressSync([Buffer.from("spl_cat_token")], SPL_CAT_PID)[0];
+
+  // The Token Metadata PDA
+  const tokenMetadataPDA = PublicKey.findProgramAddressSync([Buffer.from("metadata"), TOKEN_METADATA_PROGRAM_ID.toBuffer(), tokenMintPDA.toBuffer()], TOKEN_METADATA_PROGRAM_ID)[0];
 
   let VAA: any = null;
 
@@ -66,12 +71,16 @@ describe("spl_cat", () => {
         deriveAddress([Buffer.from("sent"), initial_sequence], SPL_CAT_PID)
       );
 
-      const tx = await program.methods.initialize(9, new anchor.BN(0)).accounts({
+      let amount = new anchor.BN("18446744073709551615");
+
+      const tx = await program.methods.initialize(9, amount, "Lmao Im working", "Haha", "").accounts({
         owner: KEYPAIR.publicKey,
         config: configAcc,
         tokenMint: tokenMintPDA,
         tokenAccount: tokenAccountPDA,
+        metadataAccount: tokenMetadataPDA,
         tokenProgram: TOKEN_PROGRAM_ID,
+        metadataProgram: TOKEN_METADATA_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         wormholeProgram: CORE_BRIDGE_PID,
         wormholeBridge: wormhole.bridge,
@@ -79,8 +88,10 @@ describe("spl_cat", () => {
         wormholeSequence: wormhole.sequence,
         wormholeFeeCollector: wormhole.feeCollector,
         wormholeMessage: wormhole.message,
+        clock: wormhole.clock,
+        rent: wormhole.rent,
         systemProgram: anchor.web3.SystemProgram.programId,
-      }).signers([KEYPAIR]).rpc();
+      }).signers([KEYPAIR]).rpc({ skipPreflight: true });
       console.log("Your transaction signature", tx);
     } catch (e: any) {
       console.log(e);
@@ -267,22 +278,10 @@ describe("spl_cat", () => {
         targetChainId,
       ], SPL_CAT_PID)
 
-      // Printing all Accounts
-      // ---------- Start Printing Accounts ----------
-      console.log("Owner: ", KEYPAIR.publicKey.toString());
-      console.log("Token Account PDA: ", tokenAccountPDA.toString());
-      console.log("Token Mint PDA: ", tokenMintPDA.toString());
-      console.log("Token Program: ", TOKEN_PROGRAM_ID.toString());
-      console.log("Associated Token Program: ", ASSOCIATED_TOKEN_PROGRAM_ID.toString());
-      console.log("Wormhole Program: ", CORE_BRIDGE_PID.toString());
-      console.log("Emitter Acc: ", emitterAcc.toString());
-      console.log("Posted VAA Key: ", postedVAAKey.toString());
-      console.log("Recieved Key: ", recievedKey.toString());
-      console.log("Config Acc: ", configAcc.toString());
-      // ---------- End Printing Accounts ----------
 
       const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
         owner: KEYPAIR.publicKey,
+        ataAuthority: payload.toAddress,
         tokenAccount: tokenAccountPDA,
         tokenMint: tokenMintPDA,
         tokenProgram: TOKEN_PROGRAM_ID,

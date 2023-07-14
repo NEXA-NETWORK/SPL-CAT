@@ -15,12 +15,20 @@ declare_id!("bhp6ce99vHEbpzRjUtpkLQpDQmzbHU5DFBX4pNLVrzb");
 #[program]
 pub mod spl_cat {
     use super::*;
-    use anchor_lang::solana_program;
+    use anchor_lang::solana_program::{self, program::invoke};
     use anchor_spl::associated_token;
     use anchor_spl::token::{burn, mint_to, Burn, MintTo};
+    use mpl_token_metadata::instruction::create_metadata_accounts_v3;
     use wormhole_anchor_sdk::wormhole;
 
-    pub fn initialize(ctx: Context<Initialize>, _decimals: u8, initial_supply: u64) -> Result<()> {
+    pub fn initialize(
+        ctx: Context<Initialize>,
+        _decimals: u8,
+        initial_supply: u64,
+        name: String,
+        symbol: String,
+        uri: String,
+    ) -> Result<()> {
         let config = &mut ctx.accounts.config;
         config.owner = ctx.accounts.owner.key();
 
@@ -51,6 +59,38 @@ pub mod spl_cat {
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
         mint_to(cpi_ctx, initial_supply)?;
+
+        // Create Metadata for the tokens.
+        {
+            let create_metadata_account_ix = create_metadata_accounts_v3(
+                ctx.accounts.metadata_program.key(),
+                ctx.accounts.metadata_account.key(),
+                ctx.accounts.token_mint.key(),
+                ctx.accounts.owner.key(),
+                ctx.accounts.owner.key(),
+                ctx.accounts.owner.key(),
+                name,
+                symbol,
+                uri,
+                None,
+                0,
+                true,
+                true,
+                None,
+                None,
+                None,
+            );
+            invoke(
+                &create_metadata_account_ix,
+                &[
+                    ctx.accounts.owner.to_account_info(),
+                    ctx.accounts.metadata_account.to_account_info(),
+                    ctx.accounts.token_mint.to_account_info(),
+                    ctx.accounts.metadata_program.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
+        }
 
         ctx.accounts.wormhole_emitter.bump = *ctx
             .bumps
@@ -266,8 +306,10 @@ pub mod spl_cat {
             mint_to(cpi_ctx, amount_u64)?;
 
             let mut serialized_payload: Vec<u8> = Vec::new();
-            CATSOLStructs::CrossChainPayload { payload: payload.clone() }
-                .serialize(&mut serialized_payload)?;
+            CATSOLStructs::CrossChainPayload {
+                payload: payload.clone(),
+            }
+            .serialize(&mut serialized_payload)?;
 
             // Save batch ID, keccak256 hash and message payload.
             let received = &mut ctx.accounts.received;

@@ -3,6 +3,7 @@ use wormhole_anchor_sdk::wormhole;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token::{Mint, Token, TokenAccount},
+    metadata::Metadata,
 };
 
 use crate::{
@@ -38,7 +39,7 @@ pub struct Initialize<'info> {
     /// Config account, which saves program data useful for other instructions.
     /// Also saves the payer of the [`initialize`](crate::initialize) instruction
     /// as the program's owner.
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     /// SPL Token Mint. Owner of the mint is the program's owner.
     /// Decimals are taken from the instruction.
@@ -61,11 +62,26 @@ pub struct Initialize<'info> {
     )]
     pub token_account: Account<'info, TokenAccount>,
 
+    // Metadata Account. Its a PDA that will store the Metadata of the tokens.
+    ///CHECK:
+    #[account(
+        mut,
+        seeds = [
+            b"metadata",
+            mpl_token_metadata::id().as_ref(),
+            token_mint.key().as_ref(),
+        ],
+        bump,
+        seeds::program = mpl_token_metadata::id()  
+    )]
+    pub metadata_account: AccountInfo<'info>,
+
     /// Solana SPL token program.
     pub token_program: Program<'info, Token>,
+    /// Metadata Program
+    pub metadata_program: Program<'info, Metadata>,
     /// Solana SPL associated token program.
     pub associated_token_program: Program<'info, AssociatedToken>,
-
     /// Wormhole program.
     pub wormhole_program: Program<'info, wormhole::program::Wormhole>,
 
@@ -273,9 +289,14 @@ pub struct BridgeOut<'info> {
 #[derive(Accounts)]
 #[instruction(vaa_hash: [u8; 32])]
 pub struct BridgeIn<'info> {
+    /// Owner will initialize an account that tracks his own payloads
     #[account(mut)]
-    /// Owner will initialize an account that tracks his own message IDs.
     pub owner: Signer<'info>,
+
+    /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
+    /// CHECK: This is the authority of the ATA
+    #[account(mut)]
+    pub ata_authority: AccountInfo<'info>,
 
     /// Token Mint. The token that is bridged in.
     #[account(
@@ -291,7 +312,7 @@ pub struct BridgeIn<'info> {
         init_if_needed,
         payer = owner,
         associated_token::mint = token_mint,
-        associated_token::authority = owner,
+        associated_token::authority = ata_authority,
     )]
     pub token_account: Account<'info, TokenAccount>,
 
@@ -337,7 +358,7 @@ pub struct BridgeIn<'info> {
     pub foreign_emitter: Account<'info, ForeignEmitter>,
 
     #[account(
-        init,
+        init_if_needed,
         payer = owner,
         seeds = [
             Received::SEED_PREFIX,
