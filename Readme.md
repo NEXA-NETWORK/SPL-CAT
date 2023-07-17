@@ -1,4 +1,9 @@
-# Testing.
+## Project Setup and Testing
+
+```bash
+git clone https://github.com/NEXA-NETWORK/SPL-CAT
+```
+
 To run Local tests, we'll use the wormhole local validator.
 ```bash
 git clone https://github.com/hmzakhalid/wormhole-local-validator

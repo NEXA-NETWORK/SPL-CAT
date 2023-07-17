@@ -4,11 +4,13 @@ pub use cat_struct::*;
 pub use context::*;
 pub use error::*;
 pub use state::*;
+pub use utils::*;
 
 pub mod cat_struct;
 pub mod context;
 pub mod error;
 pub mod state;
+pub mod utils;
 
 declare_id!("bhp6ce99vHEbpzRjUtpkLQpDQmzbHU5DFBX4pNLVrzb");
 
@@ -24,7 +26,7 @@ pub mod spl_cat {
     pub fn initialize(
         ctx: Context<Initialize>,
         _decimals: u8,
-        initial_supply: u64,
+        max_supply: u64,
         name: String,
         symbol: String,
         uri: String,
@@ -48,17 +50,9 @@ pub mod spl_cat {
         // so this value is stored as u8.
         config.finality = wormhole::Finality::Confirmed as u8;
 
-        // Mint Tokens
-        // Mint the initial supply of tokens to the program's owner.
-        let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_accounts = MintTo {
-            mint: ctx.accounts.token_mint.to_account_info(),
-            to: ctx.accounts.token_account.to_account_info(),
-            authority: ctx.accounts.owner.to_account_info(),
-        };
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-
-        mint_to(cpi_ctx, initial_supply)?;
+        // Set the Max and Minted Supply
+        config.max_supply = max_supply;
+        config.minted_supply = ctx.accounts.token_mint.supply;
 
         // Create Metadata for the tokens.
         {
@@ -80,7 +74,7 @@ pub mod spl_cat {
                 None,
                 None,
             );
-            invoke(
+            match invoke(
                 &create_metadata_account_ix,
                 &[
                     ctx.accounts.owner.to_account_info(),
@@ -89,7 +83,13 @@ pub mod spl_cat {
                     ctx.accounts.metadata_program.to_account_info(),
                     ctx.accounts.system_program.to_account_info(),
                 ],
-            )?;
+            ) {
+                Ok(_) => {}
+                Err(e) => {
+                    msg!("Error Creating Metadata: {:?}", e);
+                    return Err(e.into());
+                }
+            }
         }
 
         ctx.accounts.wormhole_emitter.bump = *ctx
@@ -102,14 +102,20 @@ pub mod spl_cat {
             // Pay the Fee
             let fee = ctx.accounts.wormhole_bridge.fee();
             if fee > 0 {
-                solana_program::program::invoke(
+                match solana_program::program::invoke(
                     &solana_program::system_instruction::transfer(
                         &ctx.accounts.owner.key(),
                         &ctx.accounts.wormhole_fee_collector.key(),
                         fee,
                     ),
                     &ctx.accounts.to_account_infos(),
-                )?;
+                ) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        msg!("Error Paying Fee: {:?}", e);
+                        return Err(e.into());
+                    }
+                }
             }
             let wormhole_emitter = &ctx.accounts.wormhole_emitter;
             let config = &ctx.accounts.config;
@@ -122,7 +128,7 @@ pub mod spl_cat {
                 &mut payload,
             )?;
 
-            wormhole::post_message(
+            match wormhole::post_message(
                 CpiContext::new_with_signer(
                     ctx.accounts.wormhole_program.to_account_info(),
                     wormhole::PostMessage {
@@ -151,12 +157,51 @@ pub mod spl_cat {
                 config.batch_id,
                 payload,
                 config.finality.into(),
-            )?;
+            ) {
+                Ok(_) => {}
+                Err(e) => {
+                    msg!("Error Posting Message: {:?}", e);
+                    return Err(e);
+                }
+            }
         }
 
         Ok(())
     }
 
+    pub fn mint_tokens(
+        ctx: Context<MintTokens>,
+        amount: u64,
+    ) -> Result<()> {
+        let config = &mut ctx.accounts.config;
+
+        // Check if the amount doesn't exceed the max supply
+        if amount + config.minted_supply >= config.max_supply {
+            return Err(ErrorFactory::IvalidMintAmount.into());
+        }
+
+        // Mint the tokens
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_accounts = MintTo {
+            mint: ctx.accounts.token_mint.to_account_info(),
+            to: ctx.accounts.token_account.to_account_info(),
+            authority: ctx.accounts.owner.to_account_info(),
+        };
+        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+
+        match mint_to(cpi_ctx, amount) {
+            Ok(_) => {}
+            Err(e) => {
+                msg!("Error Minting Tokens: {:?}", e);
+                return Err(e);
+            }
+        }
+        // Update the Minted Supply
+        config.minted_supply += amount;
+
+        Ok(())
+    }
+ 
     pub fn register_emitter(
         ctx: Context<RegisterEmitter>,
         chain: u16,
@@ -212,16 +257,19 @@ pub mod spl_cat {
         };
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
-        burn(cpi_ctx, amount)?;
+        match burn(cpi_ctx, amount) {
+            Ok(_) => {}
+            Err(e) => {
+                msg!("Error Burning Tokens: {:?}", e);
+                return Err(e);
+            }
+        }
 
         let wormhole_emitter = &ctx.accounts.wormhole_emitter;
         let config = &ctx.accounts.config;
-        msg!("Amount: {:?}", amount);
-        let amnt_u256 = U256::from(amount);
-        msg!("Amount: {:?}", amnt_u256);
 
         let payload = CrossChainStruct {
-            amount: amnt_u256,
+            amount: U256::from(amount),
             token_address: ctx.accounts.token_account.key().to_bytes(),
             token_chain: wormhole::CHAIN_ID_SOLANA,
             to_address: recipient,
@@ -241,7 +289,7 @@ pub mod spl_cat {
         // `wormhole::post_message` requires two signers: one for the emitter
         // and another for the wormhole message data. Both of these accounts
         // are owned by this program.
-        wormhole::post_message(
+        match wormhole::post_message(
             CpiContext::new_with_signer(
                 ctx.accounts.wormhole_program.to_account_info(),
                 wormhole::PostMessage {
@@ -270,13 +318,20 @@ pub mod spl_cat {
             config.batch_id,
             encoded_payload,
             config.finality.into(),
-        )?;
+        ) {
+            Ok(_) => {}
+            Err(e) => {
+                msg!("Error Posting Message: {:?}", e);
+                return Err(e);
+            }
+        }
 
         // Done.
         Ok(())
     }
 
     pub fn bridge_in(ctx: Context<BridgeIn>, vaa_hash: [u8; 32]) -> Result<()> {
+        let config = &mut ctx.accounts.config;
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
@@ -288,11 +343,32 @@ pub mod spl_cat {
                 &ctx.accounts.token_mint.key(),
             );
 
-            // Check if the ATA address matches the one in the payload
-            if ata_address != ctx.accounts.token_account.key() {
-                return Err(ErrorFactory::InvalidATAAddress.into());
+            // Check if the ATA address is valid
+            require_keys_eq!(
+                ata_address,
+                ctx.accounts.token_account.key(),
+                ErrorFactory::InvalidATAAddress
+            );
+
+            // Normalize the amount
+            let amount_u64: u64 = payload.amount.into();
+            let normalize_amount = match utils_cat::normalize_amount(
+                amount_u64,
+                payload.token_decimals,
+                ctx.accounts.token_mint.decimals,
+            ) {
+                Some(val) => val,
+                None => return Err(ErrorFactory::InvalidAmount.into()),
+            };
+
+            msg!("Amount: {:?}", normalize_amount);
+
+            // Check if the amount doesn't exceed the max supply
+            if normalize_amount + config.minted_supply >= config.max_supply {
+                return Err(ErrorFactory::IvalidMintAmount.into());
             }
 
+            // Mint the tokens
             let cpi_program = ctx.accounts.token_program.to_account_info();
             let cpi_accounts = MintTo {
                 mint: ctx.accounts.token_mint.to_account_info(),
@@ -301,10 +377,16 @@ pub mod spl_cat {
             };
             let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
-            let amount_u64: u64 = payload.amount.into();
-            msg!("Amount: {:?}", amount_u64);
-            mint_to(cpi_ctx, amount_u64)?;
+            match mint_to(cpi_ctx, normalize_amount) {
+                Ok(_) => {}
+                Err(e) => {
+                    msg!("Error Minting Tokens: {:?}", e);
+                    return Err(e);
+                }
+            }
+            config.minted_supply += normalize_amount;
 
+            // Serialize the payload to save it
             let mut serialized_payload: Vec<u8> = Vec::new();
             CATSOLStructs::CrossChainPayload {
                 payload: payload.clone(),

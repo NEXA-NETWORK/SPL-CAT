@@ -40,6 +40,20 @@ pub enum ErrorFactory {
     InvalidMessage,
 
     #[msg("The Off Chain ATA Address Does Not Match The Address of the Payload")]
-    /// Deserialized payload has unexpected payload type.
+    /// The ATA sent in the instruction does not match the ATA of the payload from wormhole.
     InvalidATAAddress,
+
+    #[msg("InvalidAmount: The difference between local and foreign decimals is too large and is causing an overflow.")]
+    /// The difference between local and foreign decimals is too large and is causing an overflow.
+    InvalidAmount,
+
+    #[msg("InvalidAmount: The amount is exceeding the maximum amount allowed to be minted.")]
+    /// The amount is too large and is exceeding the maximum amount allowed to be minted.
+    IvalidMintAmount,
+
+    #[msg("MintToFailed: The mint to instruction failed.")]
+    MintToFailed,
+
+    #[msg("TokenBurnFailed: The token burn instruction failed.")]
+    TokenBurnFailed,
 }
