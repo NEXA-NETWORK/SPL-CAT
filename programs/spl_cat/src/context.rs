@@ -329,7 +329,7 @@ pub struct BridgeIn<'info> {
     /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
     /// CHECK: This is the authority of the ATA
     #[account(mut)]
-    pub ata_authority: AccountInfo<'info>,
+    pub ata_authority: UncheckedAccount<'info>,
 
     /// Token Mint. The token that is bridged in.
     #[account(
@@ -379,6 +379,19 @@ pub struct BridgeIn<'info> {
     pub posted: Account<'info, wormhole::PostedVaa<CATSOLStructs>>,
 
     #[account(
+        init,
+        payer = owner,
+        seeds = [
+            Received::SEED_PREFIX,
+            &posted.emitter_chain().to_le_bytes()[..],
+            &posted.sequence().to_le_bytes()[..]
+        ],
+        bump,
+        space = Received::MAXIMUM_SIZE
+    )]
+    pub received: Account<'info, Received>,
+
+    #[account(
         seeds = [
             ForeignEmitter::SEED_PREFIX,
             &posted.emitter_chain().to_le_bytes()[..]
@@ -390,23 +403,6 @@ pub struct BridgeIn<'info> {
     /// agree with the one we have registered for this message's `emitter_chain`
     /// (chain ID). Read-only.
     pub foreign_emitter: Account<'info, ForeignEmitter>,
-
-    #[account(
-        init_if_needed,
-        payer = owner,
-        seeds = [
-            Received::SEED_PREFIX,
-            &posted.emitter_chain().to_le_bytes()[..],
-            &posted.sequence().to_le_bytes()[..]
-        ],
-        bump,
-        space = Received::MAXIMUM_SIZE
-    )]
-    /// Received account. [`receive_message`](crate::receive_message) will
-    /// deserialize the Wormhole message's payload and save it to this account.
-    /// This account cannot be overwritten, and will prevent Wormhole message
-    /// replay with the same sequence.
-    pub received: Account<'info, Received>,
 
     /// System program.
     pub system_program: Program<'info, System>,

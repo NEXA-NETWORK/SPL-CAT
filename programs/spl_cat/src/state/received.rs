@@ -10,7 +10,7 @@ use anchor_lang::prelude::*;
 pub const MESSAGE_MAX_LENGTH: usize = 101;
 
 #[account]
-#[derive(Default)]
+#[derive(Default, Debug)]
 /// Received account.
 pub struct Received {
     /// AKA nonce. Should always be zero in this example, but we save it anyway.
@@ -20,6 +20,8 @@ pub struct Received {
     /// CrossChainPayload from [CATSOLStructs::CrossChainPayload](crate::cat_struct::CrossChainPayload).
     pub payload: Vec<u8>,
 }
+
+
 
 impl Received {
     pub const MAXIMUM_SIZE: usize = 8 // discriminator

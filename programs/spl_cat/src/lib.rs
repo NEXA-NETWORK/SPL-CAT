@@ -169,10 +169,7 @@ pub mod spl_cat {
         Ok(())
     }
 
-    pub fn mint_tokens(
-        ctx: Context<MintTokens>,
-        amount: u64,
-    ) -> Result<()> {
+    pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
         let config = &mut ctx.accounts.config;
 
         // Check if the amount doesn't exceed the max supply
@@ -201,7 +198,7 @@ pub mod spl_cat {
 
         Ok(())
     }
- 
+
     pub fn register_emitter(
         ctx: Context<RegisterEmitter>,
         chain: u16,
@@ -335,9 +332,6 @@ pub mod spl_cat {
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
-            msg!("Payload: {:?}", payload);
-            msg!("Address: {:?}", payload.to_address);
-
             let ata_address = associated_token::get_associated_token_address(
                 &Pubkey::from(payload.to_address),
                 &ctx.accounts.token_mint.key(),
@@ -361,10 +355,10 @@ pub mod spl_cat {
                 None => return Err(ErrorFactory::InvalidAmount.into()),
             };
 
-            msg!("Amount: {:?}", normalize_amount);
+            msg!("Normalized Amount: {:?}", normalize_amount);
 
             // Check if the amount doesn't exceed the max supply
-            if normalize_amount + config.minted_supply >= config.max_supply {
+            if normalize_amount + config.minted_supply > config.max_supply {
                 return Err(ErrorFactory::IvalidMintAmount.into());
             }
 
@@ -392,13 +386,17 @@ pub mod spl_cat {
                 payload: payload.clone(),
             }
             .serialize(&mut serialized_payload)?;
+            // msg!("vaa_hash: {:?}", vaa_hash);
+            // msg!("vaa_hash size: {:?}", vaa_hash.len());
+            // msg!("vaa_hash == [0u8; 32]: {:?}", vaa_hash == [0u8; 32]);
 
-            // Save batch ID, keccak256 hash and message payload.
+            //Save batch ID, keccak256 hash and message payload.
             let received = &mut ctx.accounts.received;
             received.batch_id = posted_message.batch_id();
-            received.wormhole_message_hash = vaa_hash;
             received.payload = serialized_payload;
-
+            // received.wormhole_message_hash = vaa_hash;
+            // msg!("received {:?}", received);
+            
             // Done
             Ok(())
         } else {
