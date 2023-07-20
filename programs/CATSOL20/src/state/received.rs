@@ -13,7 +13,7 @@ pub const MESSAGE_MAX_LENGTH: usize = 101;
 #[derive(Default, Debug)]
 /// Received account.
 pub struct Received {
-    /// AKA nonce. Should always be zero in this example, but we save it anyway.
+    /// AKA batch_id. Should always be zero in this example, but we save it anyway.
     pub batch_id: u32,
     /// Keccak256 hash of verified Wormhole message.
     pub wormhole_message_hash: [u8; 32],

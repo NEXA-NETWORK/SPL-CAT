@@ -15,7 +15,7 @@ pub mod utils;
 declare_id!("bhp6ce99vHEbpzRjUtpkLQpDQmzbHU5DFBX4pNLVrzb");
 
 #[program]
-pub mod spl_cat {
+pub mod cat_sol20 {
     use super::*;
     use anchor_lang::solana_program::{self, program::invoke};
     use anchor_spl::associated_token;
@@ -181,7 +181,7 @@ pub mod spl_cat {
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_accounts = MintTo {
             mint: ctx.accounts.token_mint.to_account_info(),
-            to: ctx.accounts.token_account.to_account_info(),
+            to: ctx.accounts.token_user_ata.to_account_info(),
             authority: ctx.accounts.owner.to_account_info(),
         };
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
@@ -249,7 +249,7 @@ pub mod spl_cat {
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_accounts = Burn {
             mint: ctx.accounts.token_mint.to_account_info(),
-            from: ctx.accounts.token_account.to_account_info(),
+            from: ctx.accounts.token_user_ata.to_account_info(),
             authority: ctx.accounts.owner.to_account_info(),
         };
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
@@ -267,7 +267,7 @@ pub mod spl_cat {
 
         let payload = CrossChainStruct {
             amount: U256::from(amount),
-            token_address: ctx.accounts.token_account.key().to_bytes(),
+            token_address: ctx.accounts.token_user_ata.key().to_bytes(),
             token_chain: wormhole::CHAIN_ID_SOLANA,
             to_address: recipient,
             to_chain: recipient_chain,
@@ -340,7 +340,7 @@ pub mod spl_cat {
             // Check if the ATA address is valid
             require_keys_eq!(
                 ata_address,
-                ctx.accounts.token_account.key(),
+                ctx.accounts.token_user_ata.key(),
                 ErrorFactory::InvalidATAAddress
             );
 
@@ -366,7 +366,7 @@ pub mod spl_cat {
             let cpi_program = ctx.accounts.token_program.to_account_info();
             let cpi_accounts = MintTo {
                 mint: ctx.accounts.token_mint.to_account_info(),
-                to: ctx.accounts.token_account.to_account_info(),
+                to: ctx.accounts.token_user_ata.to_account_info(),
                 authority: ctx.accounts.owner.to_account_info(),
             };
             let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);

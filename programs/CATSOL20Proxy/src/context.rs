@@ -53,6 +53,15 @@ pub struct Initialize<'info> {
     )]
     pub token_mint: Account<'info, Mint>,
 
+    // Token Account. Its an Associated Token Account that will hold the locked tokens
+    #[account(
+        init,
+        payer = owner,
+        associated_token::mint = token_mint,
+        associated_token::authority = owner,
+    )]
+    pub token_mint_ata: Account<'info, TokenAccount>,
+
     // Metadata Account. Its a PDA that will store the Metadata of the tokens.
     ///CHECK:
     #[account(
@@ -69,6 +78,8 @@ pub struct Initialize<'info> {
 
     /// Solana SPL token program.
     pub token_program: Program<'info, Token>,
+    /// Solana SPL associated token program.
+    pub associated_token_program: Program<'info, AssociatedToken>,
     /// Metadata Program
     pub metadata_program: Program<'info, Metadata>,
     /// Wormhole program.
@@ -178,7 +189,7 @@ pub struct MintTokens<'info> {
         associated_token::mint = token_mint,
         associated_token::authority = ata_authority,
     )]
-    pub token_account: Account<'info, TokenAccount>,
+    pub token_user_ata: Account<'info, TokenAccount>,
 
     // Solana SPL Token Program
     pub token_program: Program<'info, Token>,
@@ -245,7 +256,15 @@ pub struct BridgeOut<'info> {
         associated_token::mint = token_mint,
         associated_token::authority = owner,
     )]
-    pub token_account: Account<'info, TokenAccount>,
+    pub token_user_ata: Account<'info, TokenAccount>,
+
+    // Token Account. Its an Associated Token Account that will hold the locked tokens
+    #[account(
+        mut,
+        associated_token::mint = token_mint,
+        associated_token::authority = owner,
+    )]
+    pub token_mint_ata: Account<'info, TokenAccount>,
 
     // Solana SPL Token Program
     pub token_program: Program<'info, Token>,
@@ -339,6 +358,14 @@ pub struct BridgeIn<'info> {
     )]
     pub token_mint: Account<'info, Mint>,
 
+    // Token Account. Its an Associated Token Account that will hold the locked tokens
+    #[account(
+        mut,
+        associated_token::mint = token_mint,
+        associated_token::authority = owner,
+    )]
+    pub token_mint_ata: Account<'info, TokenAccount>,
+
     // Token Account. Its an Associated Token Account that will hold the
     // tokens that are bridged in.
     #[account(
@@ -347,7 +374,7 @@ pub struct BridgeIn<'info> {
         associated_token::mint = token_mint,
         associated_token::authority = ata_authority,
     )]
-    pub token_account: Account<'info, TokenAccount>,
+    pub token_user_ata: Account<'info, TokenAccount>,
 
     // Solana SPL Token Program
     pub token_program: Program<'info, Token>,

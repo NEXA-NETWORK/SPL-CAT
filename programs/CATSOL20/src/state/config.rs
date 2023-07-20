@@ -27,7 +27,7 @@ pub struct Config {
     pub owner: Pubkey,
     /// Wormhole program's relevant addresses.
     pub wormhole: WormholeAddresses,
-    /// AKA nonce. Just zero, but saving this information in this account
+    /// AKA batch_id. Just zero, but saving this information in this account
     /// anyway.
     pub batch_id: u32,
     /// AKA consistency level. u8 representation of Solana's
@@ -46,8 +46,7 @@ impl Config {
         + 4 // batch_id
         + 1 // finality
         + 8 // minted_supply
-        + 8 // max_supply
-        
+        + 8 // max_supply   
     ;
     /// AKA `b"config"`.
     pub const SEED_PREFIX: &'static [u8; 6] = b"config";
