@@ -165,7 +165,7 @@ describe("spl_cat", () => {
       );
 
       // get sequence
-      const message = await getProgramSequenceTracker(provider.connection, SPL_CAT_PID, CORE_BRIDGE_PID)
+      const SequenceTracker = await getProgramSequenceTracker(provider.connection, SPL_CAT_PID, CORE_BRIDGE_PID)
         .then((tracker) =>
           deriveAddress(
             [
@@ -184,7 +184,7 @@ describe("spl_cat", () => {
         SPL_CAT_PID,
         CORE_BRIDGE_PID,
         KEYPAIR.publicKey,
-        message
+        SequenceTracker
       );
 
       // User's Ethereum address
