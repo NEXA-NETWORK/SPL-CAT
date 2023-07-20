@@ -68,6 +68,8 @@ pub mod test {
             + size_of::<WormholeAddresses>()
             + size_of::<u32>()
             + size_of::<u8>()
+            + size_of::<u64>()
+            + size_of::<u64>()
         );
 
         Ok(())

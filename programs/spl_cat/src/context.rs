@@ -155,7 +155,7 @@ pub struct MintTokens<'info> {
         seeds = [Config::SEED_PREFIX],
         bump,
     )]
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
     /// CHECK: This is the authority of the ATA
@@ -203,7 +203,7 @@ pub struct RegisterEmitter<'info> {
     )]
     /// Config account. This program requires that the `owner` specified in the
     /// context equals the pubkey specified in this account. Read-only.
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     #[account(
         init_if_needed,
@@ -261,7 +261,7 @@ pub struct BridgeOut<'info> {
     )]
     /// Config account. Wormhole PDAs specified in the config are checked
     /// against the Wormhole accounts in this context. Read-only.
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     /// Wormhole program.
     pub wormhole_program: Program<'info, wormhole::program::Wormhole>,
@@ -361,7 +361,7 @@ pub struct BridgeIn<'info> {
     )]
     /// Config account. Wormhole PDAs specified in the config are checked
     /// against the Wormhole accounts in this context. Read-only.
-    pub config: Account<'info, Config>,
+    pub config: Box<Account<'info, Config>>,
 
     // Wormhole program.
     pub wormhole_program: Program<'info, wormhole::program::Wormhole>,
