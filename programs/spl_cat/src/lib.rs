@@ -206,10 +206,10 @@ pub mod spl_cat {
     ) -> Result<()> {
         // Foreign emitter cannot share the same Wormhole Chain ID as the
         // Solana Wormhole program's. And cannot register a zero address.
-        // require!(
-        //     chain > 0 && chain != wormhole::CHAIN_ID_SOLANA && !address.iter().all(|&x| x == 0),
-        //     ErrorFactory::InvalidForeignEmitter,
-        // );
+        require!(
+            chain > 0 && chain != wormhole::CHAIN_ID_SOLANA && !address.iter().all(|&x| x == 0),
+            ErrorFactory::InvalidForeignEmitter,
+        );
 
         // Save the emitter info into the ForeignEmitter account.
         let emitter = &mut ctx.accounts.foreign_emitter;
@@ -392,7 +392,7 @@ pub mod spl_cat {
             received.batch_id = posted_message.batch_id();
             received.payload = serialized_payload;
             received.wormhole_message_hash = vaa_hash;
-            
+
             // Done
             Ok(())
         } else {

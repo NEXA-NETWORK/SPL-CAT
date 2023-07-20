@@ -153,7 +153,7 @@ export async function registerApp(src: string, target: string) {
 
     // Make sure the Wormhole program is deployed
     const targetChainId = Buffer.alloc(2);
-    targetChainId.writeUInt16LE(CHAINS.ethereum);
+    targetChainId.writeUInt16LE(targetNetwork['wormholeChainId']);
 
     const program = new anchor.Program<SplCat>(
         IDL,
@@ -172,12 +172,8 @@ export async function registerApp(src: string, target: string) {
         Buffer.from("config")
     ], SPL_CAT_PID);
 
-    // Decode the base58 string to a Buffer
+    // Decode the string to a Buffer
     let targetEmitterAddress = Array.from(Buffer.from(targetEmitter.slice(2), "hex"))
-    // Pad to 32 bytes
-    while (targetEmitterAddress.length < 32) {
-        targetEmitterAddress.unshift(0);
-    }
 
     const tx = await program.methods.registerEmitter(CHAINS.ethereum, targetEmitterAddress).accounts({
         owner: KEYPAIR.publicKey,

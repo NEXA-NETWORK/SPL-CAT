@@ -206,18 +206,18 @@ pub struct RegisterEmitter<'info> {
     pub config: Box<Account<'info, Config>>,
 
     #[account(
-        init_if_needed,
+        init,
         payer = owner,
         seeds = [
             ForeignEmitter::SEED_PREFIX,
             &chain.to_le_bytes()[..]
         ],
         bump,
-        space = ForeignEmitter::MAXIMUM_SIZE
+        space = ForeignEmitter::MAXIMUM_SIZE,
     )]
     /// Foreign Emitter account. Create this account if an emitter has not been
     /// registered yet for this Wormhole chain ID. If there already is an
-    /// emitter address saved in this account, overwrite it.
+    /// emitter address saved in this account, Throw an error.
     pub foreign_emitter: Account<'info, ForeignEmitter>,
 
     /// System program.

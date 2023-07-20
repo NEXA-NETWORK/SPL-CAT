@@ -1,10 +1,9 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { SplCat } from "../target/types/spl_cat";
-import { Metaplex } from "@metaplex-foundation/js";
 import { TOKEN_METADATA_PROGRAM_ID } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
-import { getAssociatedTokenAddressSync, getOrCreateAssociatedTokenAccount, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token"
+import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token"
 import { PublicKey } from "@solana/web3.js";
 import {
   getEmitterAddressEth,
@@ -13,8 +12,6 @@ import {
   postVaaSolanaWithRetry,
   getSignedVAAHash,
   CHAINS,
-  ChainId,
-  isBytes,
   parseVaa,
 } from '@certusone/wormhole-sdk';
 import { getWormholeCpiAccounts, getPostMessageCpiAccounts } from "@certusone/wormhole-sdk/lib/cjs/solana";
@@ -30,14 +27,8 @@ describe("spl_cat", () => {
   anchor.setProvider(provider);
 
   const program = anchor.workspace.SplCat as Program<SplCat>;
-  const metaplex = new Metaplex(provider.connection);
   const SPL_CAT_PID = program.programId;
   const CORE_BRIDGE_PID = "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o";
-
-  // Make sure the Wormhole program is deployed
-  const targetChainId = Buffer.alloc(2);
-  targetChainId.writeUInt16LE(CHAINS.solana);
-  const targetEmitter = PublicKey.findProgramAddressSync([Buffer.from("emitter")], SPL_CAT_PID)[0];
 
   // The Owner of the token mint
   const KEYPAIR = anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('/home/ace/.config/solana/id.json').toString())));
@@ -48,6 +39,7 @@ describe("spl_cat", () => {
   // The Token Metadata PDA
   const tokenMetadataPDA = PublicKey.findProgramAddressSync([Buffer.from("metadata"), TOKEN_METADATA_PROGRAM_ID.toBuffer(), tokenMintPDA.toBuffer()], TOKEN_METADATA_PROGRAM_ID)[0];
 
+  // The Bridge out VAA will be saved here and used for Bridge In
   let VAA: any = null;
 
 
@@ -57,10 +49,7 @@ describe("spl_cat", () => {
         Buffer.from("config")
       ], SPL_CAT_PID);
 
-      const tokenAccountPDA = getAssociatedTokenAddressSync(
-        tokenMintPDA,
-        KEYPAIR.publicKey,
-      );
+      // Initial Sequence is 1
       const initial_sequence = Buffer.alloc(8);
       initial_sequence.writeBigUint64LE(BigInt(1));
 
@@ -71,7 +60,6 @@ describe("spl_cat", () => {
         deriveAddress([Buffer.from("sent"), initial_sequence], SPL_CAT_PID)
       );
 
-      // let max_supply = new anchor.BN("18446744073709551615");
       let max_supply = new anchor.BN("10000000000000000000");
 
       const tx = await program.methods.initialize(9, max_supply, "TESTING", "TST", "").accounts({
@@ -127,28 +115,26 @@ describe("spl_cat", () => {
 
   it("Can Register a chain", async () => {
     try {
+      // Registering Ethereum 
+      const foreignChainId = Buffer.alloc(2);
+      foreignChainId.writeUInt16LE(CHAINS.ethereum);
 
       const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("foreign_emitter"),
-        targetChainId,
+        foreignChainId,
       ], SPL_CAT_PID)
+
+      // Replace this with the Eth Contract
+      const ethContractAddress = "0x0E696947A06550DEf604e82C26fd9E493e576337";
+      let targetEmitterAddress: string | number[] = getEmitterAddressEth(ethContractAddress);
+      targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress.slice(2), "hex"))
+
 
       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("config")
       ], SPL_CAT_PID);
 
-      // Decode the base58 string to a Buffer
-      const targetEmitterAddress = Array.from(targetEmitter.toBuffer());
-      const chainID = CHAINS.solana;
-
-      // const ethTokenAddress = "0x0E696947A06550DEf604e82C26fd9E493e576337";
-      // let targetEmitterAddress = Array.from(Buffer.from(ethTokenAddress.slice(2), "hex"))
-      // // Pad to 32 bytes
-      // while (targetEmitterAddress.length < 32) {
-      //   targetEmitterAddress.unshift(0);
-      // }
-
-      const tx = await program.methods.registerEmitter(chainID, targetEmitterAddress).accounts({
+      const tx = await program.methods.registerEmitter(CHAINS.ethereum, targetEmitterAddress).accounts({
         owner: KEYPAIR.publicKey,
         config: configAcc,
         foreignEmitter: emitterAcc,
@@ -164,7 +150,6 @@ describe("spl_cat", () => {
     }
   })
 
-
   it("Bridge Out", async () => {
 
     try {
@@ -173,6 +158,7 @@ describe("spl_cat", () => {
         Buffer.from("config")
       ], SPL_CAT_PID);
 
+      // Sure this acc is initialized and has tokens
       const tokenAccountPDA = getAssociatedTokenAddressSync(
         tokenMintPDA,
         KEYPAIR.publicKey,
@@ -201,21 +187,17 @@ describe("spl_cat", () => {
         message
       );
 
-      // // User's Ethereum address
-      // let userEthAddress = "0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1";
-      // let recipient = Array.from(Buffer.from(userEthAddress.slice(2), "hex"))
-      // // Pad to 32 bytes
-      // while (recipient.length < 32) {
-      //   recipient.unshift(0);
-      // }
-      // //Here's how to get the eth address from the recipient
-      // let originalRecipient = "0x" + Buffer.from(recipient.slice(12)).toString("hex");
-      // console.log("Original Recipient", originalRecipient);
+      // User's Ethereum address
+      let userEthAddress = "0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1";
+      let recipient = Array.from(Buffer.from(userEthAddress.slice(2), "hex"))
+      // Pad to 32 bytes
+      while (recipient.length < 32) {
+        recipient.unshift(0);
+      }
 
       // Parameters
       let amount = new anchor.BN("10000000000000000");
-      let recipientChain = 1; // Solana to Solana for Testing
-      let recipient = Array.from(KEYPAIR.publicKey.toBuffer()); // Using the solana wallet address for testing
+      let recipientChain = 2;
 
       const tx = await program.methods.bridgeOut(amount, recipientChain, recipient).accounts({
         owner: KEYPAIR.publicKey,
@@ -300,13 +282,13 @@ describe("spl_cat", () => {
         payload.toAddress,
       );
 
+      const foreignChainId = Buffer.alloc(2);
+      foreignChainId.writeUInt16LE(payload.tokenChain);
+
       const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("foreign_emitter"),
-        targetChainId,
+        foreignChainId,
       ], SPL_CAT_PID)
-
-      console.log("Parsed VAA", parsedVAA.hash.toString('hex'));
-
 
       const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
         owner: KEYPAIR.publicKey,
