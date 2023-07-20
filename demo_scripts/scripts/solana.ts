@@ -33,6 +33,7 @@ const tokenMetadataPDA = PublicKey.findProgramAddressSync([Buffer.from("metadata
 const KEYPAIR = anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('/home/ace/.config/solana/id.json').toString())));
 
 export async function deploy(src: string) {
+    const tokenConfig = config.token;
     const rpc = config.networks[src]['rpc'];
 
     //Request Airdrop for saved keypair (because Local Validator probably started with the keypair in ~/.config)
@@ -74,15 +75,14 @@ export async function deploy(src: string) {
                             deriveAddress([Buffer.from("sent"), initial_sequence], SPL_CAT_PID)
                         );
 
-                        let max_supply = new anchor.BN("10000000000000000000");
-                        // let max_supply = new anchor.BN("18446744073709551615");
+                        let max_supply = new anchor.BN(tokenConfig.maxSupply);
                         console.log("Invoking Initialize with:");
-                        console.log("Decimals:", 9);
-                        console.log("Max Supply:", max_supply.toString());
-                        console.log("Name:", "TESTING");
-                        console.log("Symbol:", "TST");
+                        console.log("Decimals:", tokenConfig.decimals);
+                        console.log("Max Supply:", tokenConfig.maxSupply);
+                        console.log("Name:", tokenConfig.name);
+                        console.log("Symbol:", tokenConfig.symbol);
 
-                        const tx = await program.methods.initialize(9, max_supply, "TESTING", "TST", "").accounts({
+                        const tx = await program.methods.initialize(tokenConfig.decimals, max_supply, tokenConfig.name, tokenConfig.symbol, "").accounts({
                             owner: KEYPAIR.publicKey,
                             config: configAcc,
                             tokenMint: tokenMintPDA,
@@ -151,9 +151,7 @@ export async function registerApp(src: string, target: string) {
         throw new Error(`Target Network ${target} is not supported`);
     }
 
-    // Make sure the Wormhole program is deployed
-    const targetChainId = Buffer.alloc(2);
-    targetChainId.writeUInt16LE(targetNetwork['wormholeChainId']);
+
 
     const program = new anchor.Program<SplCat>(
         IDL,
@@ -163,30 +161,37 @@ export async function registerApp(src: string, target: string) {
             new anchor.Wallet(KEYPAIR),
             {}));
 
+
+    const foreignChainId = Buffer.alloc(2);
+    foreignChainId.writeUInt16LE(targetNetwork['wormholeChainId']);
+
     const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("foreign_emitter"),
-        targetChainId,
+        foreignChainId,
     ], SPL_CAT_PID)
 
     const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("config")
     ], SPL_CAT_PID);
 
-    // Decode the string to a Buffer
-    let targetEmitterAddress = Array.from(Buffer.from(targetEmitter.slice(2), "hex"))
+    const targetEmitterAddress = Array.from(Buffer.from(targetEmitter, "hex"))
+    try {
 
-    const tx = await program.methods.registerEmitter(CHAINS.ethereum, targetEmitterAddress).accounts({
-        owner: KEYPAIR.publicKey,
-        config: configAcc,
-        foreignEmitter: emitterAcc,
-        systemProgram: anchor.web3.SystemProgram.programId
-    })
-        .signers([KEYPAIR])
-        .rpc();
+        const tx = await program.methods.registerEmitter(targetNetwork['wormholeChainId'], targetEmitterAddress).accounts({
+            owner: KEYPAIR.publicKey,
+            config: configAcc,
+            foreignEmitter: emitterAcc,
+            systemProgram: anchor.web3.SystemProgram.programId
+        })
+            .signers([KEYPAIR])
+            .rpc();
 
-    console.log("Your transaction signature", tx);
-    console.log(`Successfully Registered ${target} on ${src}`);
-    console.log("\n");
+        console.log("Your transaction signature", tx);
+        console.log(`Successfully Registered ${target} on ${src}`);
+        console.log("\n");
+    } catch (e) {
+        console.log("Error: ", e);
+    }
 }
 
 
@@ -389,12 +394,12 @@ export async function bridgeIn(src: string, target: string, idx: string) {
     );
 
     // Make sure the Wormhole program is deployed
-    const targetChainId = Buffer.alloc(2);
-    targetChainId.writeUInt16LE(CHAINS.ethereum);
+    const foreignChainId = Buffer.alloc(2);
+    foreignChainId.writeUInt16LE(payload.tokenChain);
 
     const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("foreign_emitter"),
-        targetChainId,
+        foreignChainId,
     ], SPL_CAT_PID)
 
     try {

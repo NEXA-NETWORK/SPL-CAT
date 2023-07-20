@@ -6,12 +6,7 @@ import fetch from 'node-fetch';
 import bs58 from 'bs58';
 
 
-const config = JSON.parse(fs.readFileSync('./xdapp.config.json').toString());
-const name = "TestToken";
-const symbol = "TST";
-const decimals = 9;
-const maxSupply = "10000000000000000000";
-const wormholeChainId = "2";
+const config = JSON.parse(fs.readFileSync('./xdapp.config.json').toString());;
 const wormholeCoreContract = "0xC89Ce4735882C9F0f0FE26686c53074E09B0D550";
 const SOLANA_CHAIN_ID = 1;
 
@@ -123,7 +118,7 @@ export async function registerApp(src: string, target: string) {
     const SPLTokenAddress = bs58.decode(targetDeploymentInfo.emitterAddress);
 
     const tx = await CATERC20Instance.registerChain(
-        SOLANA_CHAIN_ID,
+        targetNetwork.wormholeChainId,
         SPLTokenAddress,
         SignatureVerification
     ).then((tx: any) => tx.wait());

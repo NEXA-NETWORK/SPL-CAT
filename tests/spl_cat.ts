@@ -127,14 +127,13 @@ describe("spl_cat", () => {
       // Replace this with the Eth Contract
       const ethContractAddress = "0x0E696947A06550DEf604e82C26fd9E493e576337";
       let targetEmitterAddress: string | number[] = getEmitterAddressEth(ethContractAddress);
-      targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress.slice(2), "hex"))
-
-
+      targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
+      
       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("config")
       ], SPL_CAT_PID);
 
-      const tx = await program.methods.registerEmitter(CHAINS.ethereum, targetEmitterAddress).accounts({
+      const tx = await program.methods.registerEmitter(2, targetEmitterAddress).accounts({
         owner: KEYPAIR.publicKey,
         config: configAcc,
         foreignEmitter: emitterAcc,
