@@ -1,6 +1,6 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
-import { SplCat } from "../target/types/spl_cat";
+import { CatSol20Proxy } from "../target/types/cat_sol20_proxy";
 import { TOKEN_METADATA_PROGRAM_ID } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token"
@@ -26,9 +26,10 @@ describe("spl_cat", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(provider);
 
-  const program = anchor.workspace.SplCat as Program<SplCat>;
+  const program = anchor.workspace.CatSol20Proxy as Program<CatSol20Proxy>;
   const SPL_CAT_PID = program.programId;
   const CORE_BRIDGE_PID = "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o";
+  const SPL_TOKEN_SEED = Buffer.from("spl_cat_token");
 
   // The Owner of the token mint
   const KEYPAIR = anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('/home/ace/.config/solana/id.json').toString())));
@@ -66,16 +67,11 @@ describe("spl_cat", () => {
         deriveAddress([Buffer.from("sent"), initial_sequence], SPL_CAT_PID)
       );
 
-      let max_supply = new anchor.BN("10000000000000000000");
-
-      const tx = await program.methods.initialize(9, max_supply, "TESTING", "TST", "").accounts({
+      const tx = await program.methods.initialize().accounts({
         owner: KEYPAIR.publicKey,
         config: configAcc,
         tokenMint: tokenMintPDA,
-        tokenMintAccount: tokenMintATA,
-        metadataAccount: tokenMetadataPDA,
         tokenProgram: TOKEN_PROGRAM_ID,
-        metadataProgram: TOKEN_METADATA_PROGRAM_ID,
         wormholeProgram: CORE_BRIDGE_PID,
         wormholeBridge: wormhole.bridge,
         wormholeEmitter: wormhole.emitter,
@@ -91,34 +87,6 @@ describe("spl_cat", () => {
       console.log(e);
     }
   });
-
-  it("Can Mint Tokens", async () => {
-    try {
-
-      const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
-        Buffer.from("config")
-      ], SPL_CAT_PID);
-
-      const tokenAccountPDA = getAssociatedTokenAddressSync(
-        tokenMintPDA,
-        KEYPAIR.publicKey,
-      );
-      let amount = new anchor.BN("100000000000000000");
-      const tx = await program.methods.mintTokens(amount).accounts({
-        owner: KEYPAIR.publicKey,
-        ataAuthority: KEYPAIR.publicKey,
-        config: configAcc,
-        tokenMint: tokenMintPDA,
-        tokenAccount: tokenAccountPDA,
-        tokenProgram: TOKEN_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        systemProgram: anchor.web3.SystemProgram.programId,
-      }).signers([KEYPAIR]).rpc({ skipPreflight: true });
-      console.log("Your transaction signature", tx);
-    } catch (e: any) {
-      console.log(e);
-    }
-  })
 
   it("Can Register a chain", async () => {
     try {
@@ -165,9 +133,18 @@ describe("spl_cat", () => {
       ], SPL_CAT_PID);
 
       // Sure this acc is initialized and has tokens
-      const tokenAccountPDA = getAssociatedTokenAddressSync(
+      const tokenUserATA = getAssociatedTokenAddressSync(
         tokenMintPDA,
         KEYPAIR.publicKey,
+      );
+
+      // PDA for Locking the Tokens
+      const tokenATAPDA = PublicKey.findProgramAddressSync([SPL_TOKEN_SEED, tokenUserATA.toBuffer()], SPL_CAT_PID)[0];
+      // ATA for Locking the Tokens
+      const tokenMintATA = getAssociatedTokenAddressSync(
+        tokenMintPDA,
+        tokenATAPDA,
+        true
       );
 
       // get sequence
@@ -208,7 +185,7 @@ describe("spl_cat", () => {
       const tx = await program.methods.bridgeOut(amount, recipientChain, recipient).accounts({
         owner: KEYPAIR.publicKey,
         // Token Stuff
-        tokenAccount: tokenAccountPDA,
+        tokenUserAta: tokenUserATA,
         tokenMint: tokenMintPDA,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -283,7 +260,7 @@ describe("spl_cat", () => {
         Buffer.from("config")
       ], SPL_CAT_PID);
 
-      const tokenAccountPDA = getAssociatedTokenAddressSync(
+      const tokenUserATA = getAssociatedTokenAddressSync(
         tokenMintPDA,
         payload.toAddress,
       );
@@ -299,7 +276,7 @@ describe("spl_cat", () => {
       const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
         owner: KEYPAIR.publicKey,
         ataAuthority: payload.toAddress,
-        tokenAccount: tokenAccountPDA,
+        tokenUserAta: tokenUserATA,
         tokenMint: tokenMintPDA,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,

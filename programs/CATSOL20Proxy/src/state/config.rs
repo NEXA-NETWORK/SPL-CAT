@@ -33,10 +33,6 @@ pub struct Config {
     /// AKA consistency level. u8 representation of Solana's
     /// [Finality](wormhole_anchor_sdk::wormhole::Finality).
     pub finality: u8,
-    /// Minted supply.
-    pub minted_supply: u64,
-    /// Max supply.
-    pub max_supply: u64,
 }
 
 impl Config {
@@ -45,8 +41,6 @@ impl Config {
         + WormholeAddresses::LEN
         + 4 // batch_id
         + 1 // finality
-        + 8 // minted_supply
-        + 8 // max_supply   
     ;
     /// AKA `b"config"`.
     pub const SEED_PREFIX: &'static [u8; 6] = b"config";

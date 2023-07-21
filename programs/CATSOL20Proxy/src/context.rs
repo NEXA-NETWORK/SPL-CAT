@@ -3,7 +3,6 @@ use wormhole_anchor_sdk::wormhole;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token::{Mint, Token, TokenAccount},
-    metadata::Metadata,
 };
 
 use crate::{
@@ -19,7 +18,6 @@ pub const SEED_PREFIX_MINT: &'static [u8; 13] = b"spl_cat_token";
 
 
 #[derive(Accounts)]
-#[instruction(_decimals: u8)]
 /// Context used to initialize program data (i.e. config).
 pub struct Initialize<'info> {
     #[account(mut)]
@@ -41,47 +39,16 @@ pub struct Initialize<'info> {
     /// as the program's owner.
     pub config: Box<Account<'info, Config>>,
 
-    /// SPL Token Mint. Owner of the mint is the program's owner.
-    /// Decimals are taken from the instruction.
+    /// SPL Token Mint. Owned by an external program.
     #[account(
-        init, 
+        mut,
         seeds = [SEED_PREFIX_MINT],
         bump,
-        payer = owner,
-        mint::decimals = _decimals,
-        mint::authority = owner,
     )]
     pub token_mint: Account<'info, Mint>,
 
-    // Token Account. Its an Associated Token Account that will hold the locked tokens
-    #[account(
-        init,
-        payer = owner,
-        associated_token::mint = token_mint,
-        associated_token::authority = owner,
-    )]
-    pub token_mint_ata: Account<'info, TokenAccount>,
-
-    // Metadata Account. Its a PDA that will store the Metadata of the tokens.
-    ///CHECK:
-    #[account(
-        mut,
-        seeds = [
-            b"metadata",
-            mpl_token_metadata::id().as_ref(),
-            token_mint.key().as_ref(),
-        ],
-        bump,
-        seeds::program = mpl_token_metadata::id()  
-    )]
-    pub metadata_account: AccountInfo<'info>,
-
     /// Solana SPL token program.
     pub token_program: Program<'info, Token>,
-    /// Solana SPL associated token program.
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    /// Metadata Program
-    pub metadata_program: Program<'info, Metadata>,
     /// Wormhole program.
     pub wormhole_program: Program<'info, wormhole::program::Wormhole>,
 
@@ -157,49 +124,6 @@ pub struct Initialize<'info> {
 }
 
 #[derive(Accounts)]
-pub struct MintTokens<'info> {
-    #[account(mut)]
-    pub owner: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [Config::SEED_PREFIX],
-        bump,
-    )]
-    pub config: Box<Account<'info, Config>>,
-
-    /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
-    /// CHECK: This is the authority of the ATA
-    #[account(mut)]
-    pub ata_authority: AccountInfo<'info>,
-
-    /// Token Mint. The token that is bridged in.
-    #[account(
-        mut, 
-        seeds = [SEED_PREFIX_MINT],
-        bump
-    )]
-    pub token_mint: Account<'info, Mint>,
-
-    // Token Account. Its an Associated Token Account that will hold the
-    // tokens that are bridged in.
-    #[account(
-        init_if_needed,
-        payer = owner,
-        associated_token::mint = token_mint,
-        associated_token::authority = ata_authority,
-    )]
-    pub token_user_ata: Account<'info, TokenAccount>,
-
-    // Solana SPL Token Program
-    pub token_program: Program<'info, Token>,
-    // Associated Token Program
-    pub associated_token_program: Program<'info, AssociatedToken>,
-    /// System program.
-    pub system_program: Program<'info, System>,
-}
-
-#[derive(Accounts)]
 #[instruction(chain: u16)]
 pub struct RegisterEmitter<'info> {
     #[account(mut)]
@@ -241,28 +165,39 @@ pub struct BridgeOut<'info> {
     /// Owner will pay Wormhole fee to post a message and pay for the associated token account.
     pub owner: Signer<'info>,
 
-    /// Token Mint. The token that is bridged in.
+    #[account(mut)]
+    pub ata_authority: Signer<'info>,
+
+    /// Token Mint. The token that is Will be bridged out
     #[account(
         mut, 
         seeds = [SEED_PREFIX_MINT],
         bump
     )]
-    pub token_mint: Account<'info, Mint>,
+    pub token_mint: Box<Account<'info, Mint>>,
 
     // Token Account. Its an Associated Token Account that will hold the
-    // tokens that are bridged in.
+    // tokens that are bridged out
     #[account(
         mut,
         associated_token::mint = token_mint,
-        associated_token::authority = owner,
+        associated_token::authority = ata_authority,
     )]
     pub token_user_ata: Account<'info, TokenAccount>,
 
-    // Token Account. Its an Associated Token Account that will hold the locked tokens
+    /// CHECK: Token ATA PDA. The PDA of the ATA that will hold the locked tokens.
     #[account(
-        mut,
+        seeds = [SEED_PREFIX_MINT, token_user_ata.key().as_ref()],
+        bump,
+      )]
+    pub token_ata_pda: AccountInfo<'info>,
+
+    // Token Mint ATA. Its an Associated Token Account owned by the Program that will hold the locked tokens
+    #[account(
+        init_if_needed,
+        payer = ata_authority,
         associated_token::mint = token_mint,
-        associated_token::authority = owner,
+        associated_token::authority = token_ata_pda,
     )]
     pub token_mint_ata: Account<'info, TokenAccount>,
 
@@ -356,25 +291,34 @@ pub struct BridgeIn<'info> {
         seeds = [SEED_PREFIX_MINT],
         bump
     )]
-    pub token_mint: Account<'info, Mint>,
-
-    // Token Account. Its an Associated Token Account that will hold the locked tokens
-    #[account(
-        mut,
-        associated_token::mint = token_mint,
-        associated_token::authority = owner,
-    )]
-    pub token_mint_ata: Account<'info, TokenAccount>,
+    pub token_mint: Box<Account<'info, Mint>>,
 
     // Token Account. Its an Associated Token Account that will hold the
     // tokens that are bridged in.
     #[account(
-        init_if_needed,
-        payer = owner,
+        mut,
         associated_token::mint = token_mint,
         associated_token::authority = ata_authority,
     )]
     pub token_user_ata: Account<'info, TokenAccount>,
+
+    /// CHECK: Token ATA PDA. The PDA of the ATA that will hold the locked tokens.
+    #[account(
+        seeds = [SEED_PREFIX_MINT, token_user_ata.key().as_ref()],
+        bump,
+      )]
+    pub token_ata_pda: AccountInfo<'info>,
+
+    // Token Mint ATA. Its an Associated Token Account owned by the Program that will hold the locked tokens
+    #[account(
+        init_if_needed,
+        payer = ata_authority,
+        associated_token::mint = token_mint,
+        associated_token::authority = token_ata_pda,
+    )]
+    pub token_mint_ata: Account<'info, TokenAccount>,
+
+    
 
     // Solana SPL Token Program
     pub token_program: Program<'info, Token>,

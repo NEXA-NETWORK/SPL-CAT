@@ -17,19 +17,13 @@ declare_id!("bhp6ce99vHEbpzRjUtpkLQpDQmzbHU5DFBX4pNLVrzb");
 #[program]
 pub mod cat_sol20_proxy {
     use super::*;
-    use anchor_lang::solana_program::{self, program::invoke};
+    use anchor_lang::solana_program::{self};
     use anchor_spl::associated_token;
-    use anchor_spl::token::{mint_to, transfer, MintTo, Transfer};
-    use mpl_token_metadata::instruction::create_metadata_accounts_v3;
+    use anchor_spl::token::{transfer, Transfer};
     use wormhole_anchor_sdk::wormhole;
 
     pub fn initialize(
         ctx: Context<Initialize>,
-        _decimals: u8,
-        max_supply: u64,
-        name: String,
-        symbol: String,
-        uri: String,
     ) -> Result<()> {
         let config = &mut ctx.accounts.config;
         config.owner = ctx.accounts.owner.key();
@@ -49,48 +43,6 @@ pub mod cat_sol20_proxy {
         // Anchor IDL default coder cannot handle wormhole::Finality enum,
         // so this value is stored as u8.
         config.finality = wormhole::Finality::Confirmed as u8;
-
-        // Set the Max and Minted Supply
-        config.max_supply = max_supply;
-        config.minted_supply = ctx.accounts.token_mint.supply;
-
-        // Create Metadata for the tokens.
-        {
-            let create_metadata_account_ix = create_metadata_accounts_v3(
-                ctx.accounts.metadata_program.key(),
-                ctx.accounts.metadata_account.key(),
-                ctx.accounts.token_mint.key(),
-                ctx.accounts.owner.key(),
-                ctx.accounts.owner.key(),
-                ctx.accounts.owner.key(),
-                name,
-                symbol,
-                uri,
-                None,
-                0,
-                true,
-                true,
-                None,
-                None,
-                None,
-            );
-            match invoke(
-                &create_metadata_account_ix,
-                &[
-                    ctx.accounts.owner.to_account_info(),
-                    ctx.accounts.metadata_account.to_account_info(),
-                    ctx.accounts.token_mint.to_account_info(),
-                    ctx.accounts.metadata_program.to_account_info(),
-                    ctx.accounts.system_program.to_account_info(),
-                ],
-            ) {
-                Ok(_) => {}
-                Err(e) => {
-                    msg!("Error Creating Metadata: {:?}", e);
-                    return Err(e.into());
-                }
-            }
-        }
 
         ctx.accounts.wormhole_emitter.bump = *ctx
             .bumps
@@ -169,36 +121,6 @@ pub mod cat_sol20_proxy {
         Ok(())
     }
 
-    pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
-        let config = &mut ctx.accounts.config;
-
-        // Check if the amount doesn't exceed the max supply
-        if amount + config.minted_supply >= config.max_supply {
-            return Err(ErrorFactory::IvalidMintAmount.into());
-        }
-
-        // Mint the tokens
-        let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_accounts = MintTo {
-            mint: ctx.accounts.token_mint.to_account_info(),
-            to: ctx.accounts.token_user_ata.to_account_info(),
-            authority: ctx.accounts.owner.to_account_info(),
-        };
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
-
-        match mint_to(cpi_ctx, amount) {
-            Ok(_) => {}
-            Err(e) => {
-                msg!("Error Minting Tokens: {:?}", e);
-                return Err(e);
-            }
-        }
-        // Update the Minted Supply
-        config.minted_supply += amount;
-
-        Ok(())
-    }
-
     pub fn register_emitter(
         ctx: Context<RegisterEmitter>,
         chain: u16,
@@ -250,7 +172,7 @@ pub mod cat_sol20_proxy {
         let cpi_accounts = Transfer {
             from: ctx.accounts.token_user_ata.to_account_info(),
             to: ctx.accounts.token_mint_ata.to_account_info(),
-            authority: ctx.accounts.owner.to_account_info(),
+            authority: ctx.accounts.ata_authority.to_account_info(),
         };
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
@@ -328,7 +250,6 @@ pub mod cat_sol20_proxy {
     }
 
     pub fn bridge_in(ctx: Context<BridgeIn>, vaa_hash: [u8; 32]) -> Result<()> {
-        let config = &mut ctx.accounts.config;
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
@@ -357,17 +278,12 @@ pub mod cat_sol20_proxy {
 
             msg!("Normalized Amount: {:?}", normalize_amount);
 
-            // Check if the amount doesn't exceed the max supply
-            if normalize_amount + config.minted_supply > config.max_supply {
-                return Err(ErrorFactory::IvalidMintAmount.into());
-            }
-
             // Mint the tokens
             let cpi_program = ctx.accounts.token_program.to_account_info();
             let cpi_accounts = Transfer {
                 from: ctx.accounts.token_mint_ata.to_account_info(),
                 to: ctx.accounts.token_user_ata.to_account_info(),
-                authority: ctx.accounts.owner.to_account_info(),
+                authority: ctx.accounts.token_ata_pda.to_account_info(),
             };
             let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
@@ -378,7 +294,6 @@ pub mod cat_sol20_proxy {
                     return Err(e);
                 }
             }
-            config.minted_supply += normalize_amount;
 
             // Serialize the payload to save it
             let mut serialized_payload: Vec<u8> = Vec::new();
