@@ -1,8 +1,11 @@
 [features]
 seeds = false
 skip-lint = false
+
 [programs.localnet]
-spl_cat = "bhp6ce99vHEbpzRjUtpkLQpDQmzbHU5DFBX4pNLVrzb"
+cat_sol20 = "9oMo3tUy3gBYi9FHEDF8YFQBryiUXLqq8wi4Ztsd186Y"
+cat_sol20_proxy = "CnKFjQSLcPMVhmy8GzcetJE7dyDXqhsNaPHZzPtQ87oD"
+test_token = "6sFFctSuHcmuxVnFtpeeGq4b5udhhvyqah2K3yDuq3Q1"
 
 
 [registry]

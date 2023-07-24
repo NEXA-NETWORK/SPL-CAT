@@ -12,7 +12,7 @@ pub mod error;
 pub mod state;
 pub mod utils;
 
-declare_id!("bhp6ce99vHEbpzRjUtpkLQpDQmzbHU5DFBX4pNLVrzb");
+declare_id!("9oMo3tUy3gBYi9FHEDF8YFQBryiUXLqq8wi4Ztsd186Y");
 
 #[program]
 pub mod cat_sol20 {

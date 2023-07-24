@@ -12,7 +12,7 @@ pub mod error;
 pub mod state;
 pub mod utils;
 
-declare_id!("bhp6ce99vHEbpzRjUtpkLQpDQmzbHU5DFBX4pNLVrzb");
+declare_id!("CnKFjQSLcPMVhmy8GzcetJE7dyDXqhsNaPHZzPtQ87oD");
 
 #[program]
 pub mod cat_sol20_proxy {
@@ -22,9 +22,7 @@ pub mod cat_sol20_proxy {
     use anchor_spl::token::{transfer, Transfer};
     use wormhole_anchor_sdk::wormhole;
 
-    pub fn initialize(
-        ctx: Context<Initialize>,
-    ) -> Result<()> {
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         let config = &mut ctx.accounts.config;
         config.owner = ctx.accounts.owner.key();
 
@@ -128,10 +126,10 @@ pub mod cat_sol20_proxy {
     ) -> Result<()> {
         // Foreign emitter cannot share the same Wormhole Chain ID as the
         // Solana Wormhole program's. And cannot register a zero address.
-        require!(
-            chain > 0 && chain != wormhole::CHAIN_ID_SOLANA && !address.iter().all(|&x| x == 0),
-            ErrorFactory::InvalidForeignEmitter,
-        );
+        // require!(
+        //     chain > 0 && chain != wormhole::CHAIN_ID_SOLANA && !address.iter().all(|&x| x == 0),
+        //     ErrorFactory::InvalidForeignEmitter,
+        // );
 
         // Save the emitter info into the ForeignEmitter account.
         let emitter = &mut ctx.accounts.foreign_emitter;
@@ -278,19 +276,32 @@ pub mod cat_sol20_proxy {
 
             msg!("Normalized Amount: {:?}", normalize_amount);
 
-            // Mint the tokens
+            // Unlock the Tokens
             let cpi_program = ctx.accounts.token_program.to_account_info();
             let cpi_accounts = Transfer {
                 from: ctx.accounts.token_mint_ata.to_account_info(),
                 to: ctx.accounts.token_user_ata.to_account_info(),
                 authority: ctx.accounts.token_ata_pda.to_account_info(),
             };
-            let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+            let bump = *ctx
+                .bumps
+                .get("token_ata_pda")
+                .ok_or(ErrorFactory::BumpNotFound)?;
+
+            let cpi_signer_seeds = &[
+                b"cat_spl_token".as_ref(),
+                &ctx.accounts.token_user_ata.key().to_bytes(),
+                &[bump],
+            ];
+
+            let cpi_signer = &[&cpi_signer_seeds[..]];
+
+            let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
 
             match transfer(cpi_ctx, normalize_amount) {
                 Ok(_) => {}
                 Err(e) => {
-                    msg!("Error Minting Tokens: {:?}", e);
+                    msg!("Error Transfering Tokens: {:?}", e);
                     return Err(e);
                 }
             }

@@ -8,13 +8,13 @@ use anchor_spl::{
 use crate::{
     error::ErrorFactory,
     cat_struct::CATSOLStructs,
-    state::{Config, ForeignEmitter, Received, WormholeEmitter}
+    state::{Config, ForeignEmitter, Received, WormholeEmitter},
 };
 
 /// AKA `b"sent"`.
 pub const SEED_PREFIX_SENT: &[u8; 4] = b"sent";
 
-pub const SEED_PREFIX_MINT: &'static [u8; 13] = b"spl_cat_token";
+pub const SEED_PREFIX_MINT: &'static [u8; 13] = b"cat_spl_token";
 
 
 #[derive(Accounts)]
@@ -39,13 +39,19 @@ pub struct Initialize<'info> {
     /// as the program's owner.
     pub config: Box<Account<'info, Config>>,
 
-    /// SPL Token Mint. Owned by an external program.
-    #[account(
-        mut,
-        seeds = [SEED_PREFIX_MINT],
-        bump,
-    )]
-    pub token_mint: Account<'info, Mint>,
+    // /// CHECK: This is the token mint that will be bridged out
+    // pub other_program: AccountInfo<'info>,
+    
+    // /// SPL Token Mint. Owned by an external program.
+    // #[account(
+    //     mut,
+    //     seeds = [SEED_PREFIX_MINT],
+    //     bump, 
+    //     seeds::program = other_program.key()
+    // )]
+    #[account(mut)]
+    pub token_mint: Box<Account<'info, Mint>>,
+
 
     /// Solana SPL token program.
     pub token_program: Program<'info, Token>,
@@ -169,11 +175,7 @@ pub struct BridgeOut<'info> {
     pub ata_authority: Signer<'info>,
 
     /// Token Mint. The token that is Will be bridged out
-    #[account(
-        mut, 
-        seeds = [SEED_PREFIX_MINT],
-        bump
-    )]
+    #[account(mut)]
     pub token_mint: Box<Account<'info, Mint>>,
 
     // Token Account. Its an Associated Token Account that will hold the
@@ -187,6 +189,7 @@ pub struct BridgeOut<'info> {
 
     /// CHECK: Token ATA PDA. The PDA of the ATA that will hold the locked tokens.
     #[account(
+        mut,
         seeds = [SEED_PREFIX_MINT, token_user_ata.key().as_ref()],
         bump,
       )]
@@ -195,7 +198,7 @@ pub struct BridgeOut<'info> {
     // Token Mint ATA. Its an Associated Token Account owned by the Program that will hold the locked tokens
     #[account(
         init_if_needed,
-        payer = ata_authority,
+        payer = owner,
         associated_token::mint = token_mint,
         associated_token::authority = token_ata_pda,
     )]
@@ -286,11 +289,7 @@ pub struct BridgeIn<'info> {
     pub ata_authority: UncheckedAccount<'info>,
 
     /// Token Mint. The token that is bridged in.
-    #[account(
-        mut, 
-        seeds = [SEED_PREFIX_MINT],
-        bump
-    )]
+    #[account(mut)]
     pub token_mint: Box<Account<'info, Mint>>,
 
     // Token Account. Its an Associated Token Account that will hold the
@@ -304,6 +303,7 @@ pub struct BridgeIn<'info> {
 
     /// CHECK: Token ATA PDA. The PDA of the ATA that will hold the locked tokens.
     #[account(
+        mut,
         seeds = [SEED_PREFIX_MINT, token_user_ata.key().as_ref()],
         bump,
       )]
@@ -311,14 +311,11 @@ pub struct BridgeIn<'info> {
 
     // Token Mint ATA. Its an Associated Token Account owned by the Program that will hold the locked tokens
     #[account(
-        init_if_needed,
-        payer = ata_authority,
+        mut,
         associated_token::mint = token_mint,
         associated_token::authority = token_ata_pda,
     )]
     pub token_mint_ata: Account<'info, TokenAccount>,
-
-    
 
     // Solana SPL Token Program
     pub token_program: Program<'info, Token>,
@@ -368,7 +365,7 @@ pub struct BridgeIn<'info> {
             &posted.emitter_chain().to_le_bytes()[..]
         ],
         bump,
-        constraint = foreign_emitter.verify(posted.emitter_address()) @ ErrorFactory::InvalidForeignEmitter
+        // constraint = foreign_emitter.verify(posted.emitter_address()) @ ErrorFactory::InvalidForeignEmitter
     )]
     /// Foreign emitter account. The posted message's `emitter_address` must
     /// agree with the one we have registered for this message's `emitter_chain`

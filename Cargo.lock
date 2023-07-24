@@ -1897,6 +1897,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "test_token"
+version = "0.1.0"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "borsh",
+ "byteorder",
+ "getrandom 0.2.10",
+ "hex",
+ "mpl-token-metadata",
+ "serde",
+ "sha3 0.10.8",
+ "solana-program",
+ "toml_datetime",
+ "winnow",
+ "wormhole-anchor-sdk",
+]
+
+[[package]]
 name = "thiserror"
 version = "1.0.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
