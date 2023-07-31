@@ -5,12 +5,14 @@ pub use context::*;
 pub use error::*;
 pub use state::*;
 pub use utils::*;
+pub use constants::*;
 
 pub mod cat_struct;
 pub mod context;
 pub mod error;
 pub mod state;
 pub mod utils;
+pub mod constants;
 
 declare_id!("9oMo3tUy3gBYi9FHEDF8YFQBryiUXLqq8wi4Ztsd186Y");
 
@@ -18,7 +20,10 @@ declare_id!("9oMo3tUy3gBYi9FHEDF8YFQBryiUXLqq8wi4Ztsd186Y");
 pub mod cat_sol20 {
     use super::*;
     use anchor_lang::solana_program::{self, program::invoke};
-    use anchor_spl::token::{burn, mint_to, Burn, MintTo};
+    use anchor_spl::{
+        associated_token,
+        token::{burn, mint_to, Burn, MintTo}
+    };
     use mpl_token_metadata::instruction::create_metadata_accounts_v3;
     use wormhole_anchor_sdk::wormhole;
 
@@ -235,6 +240,10 @@ pub mod cat_sol20 {
             )?;
         }
 
+        // Normalize the amount to a Standard 8 decimals
+        let decimals = ctx.accounts.token_mint.decimals;
+        let normalized_amount = utils_cat::normalize_amount(amount, decimals);
+
         // Burn the tokens
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_accounts = Burn {
@@ -244,7 +253,7 @@ pub mod cat_sol20 {
         };
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
-        match burn(cpi_ctx, amount) {
+        match burn(cpi_ctx, normalized_amount) {
             Ok(_) => {}
             Err(e) => {
                 return Err(e);
@@ -260,7 +269,7 @@ pub mod cat_sol20 {
             to_chain: recipient_chain,
             token_decimals: ctx.accounts.token_mint.decimals,
         };
-        
+
         // Serialize the payload
         let cat_sol_struct = CATSOLStructs::CrossChainPayload { payload };
         let mut encoded_payload: Vec<u8> = Vec::new();
@@ -320,28 +329,28 @@ pub mod cat_sol20 {
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
-            let ata_address = &Pubkey::from(payload.to_address);
+            let ata_address = associated_token::get_associated_token_address(
+                &Pubkey::from(payload.to_address),
+                &ctx.accounts.token_mint.key(),
+            );
 
-            // Check if the ATA address is valid
+            // Check if the ATA address is the same as the one in the payload
             require_keys_eq!(
-                ata_address.key(),
+                ata_address,
                 ctx.accounts.token_user_ata.key(),
                 ErrorFactory::MisMatchdATAAddress
             );
 
-            // Normalize the amount
+            // Normalize the amount by converting it back from the standard 8 decimals to the token's decimals
             let amount_u64: u64 = payload.amount.into();
-            let normalize_amount = match utils_cat::normalize_amount(
+            let decimals = ctx.accounts.token_mint.decimals;
+            let normalized_amount = utils_cat::denormalize_amount(
                 amount_u64,
-                payload.token_decimals,
-                ctx.accounts.token_mint.decimals,
-            ) {
-                Some(val) => val,
-                None => return Err(ErrorFactory::InvalidAmount.into()),
-            };
+                decimals,
+            );
 
             // Check if the amount doesn't exceed the max supply
-            if normalize_amount + config.minted_supply > config.max_supply {
+            if normalized_amount + config.minted_supply > config.max_supply {
                 return Err(ErrorFactory::IvalidMintAmount.into());
             }
 
@@ -354,13 +363,13 @@ pub mod cat_sol20 {
             };
             let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
-            match mint_to(cpi_ctx, normalize_amount) {
+            match mint_to(cpi_ctx, normalized_amount) {
                 Ok(_) => {}
                 Err(e) => {
                     return Err(e);
                 }
             }
-            config.minted_supply += normalize_amount;
+            config.minted_supply += normalized_amount;
 
             // Serialize the payload to save it
             let mut serialized_payload: Vec<u8> = Vec::new();

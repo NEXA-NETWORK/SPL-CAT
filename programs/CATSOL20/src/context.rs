@@ -7,16 +7,11 @@ use anchor_spl::{
 };
 
 use crate::{
+    constants::*,
     error::ErrorFactory,
     cat_struct::CATSOLStructs,
     state::{Config, ForeignEmitter, Received, WormholeEmitter}
 };
-
-/// AKA `b"sent"`.
-pub const SEED_PREFIX_SENT: &[u8; 4] = b"sent";
-
-pub const SEED_PREFIX_MINT: &'static [u8; 13] = b"spl_cat_token";
-
 
 #[derive(Accounts)]
 #[instruction(_decimals: u8)]
@@ -331,6 +326,11 @@ pub struct BridgeIn<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
+    /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
+    /// CHECK: This is the authority of the ATA
+    #[account(mut)]
+    pub ata_authority: UncheckedAccount<'info>,
+
     /// Token Mint. The token that is bridged in.
     #[account(
         mut, 
@@ -341,7 +341,12 @@ pub struct BridgeIn<'info> {
 
     // Token Account. Its an Associated Token Account that will hold the
     // tokens that are bridged in.
-    #[account(mut)]
+    #[account(
+        init_if_needed,
+        payer = owner,
+        associated_token::mint = token_mint,
+        associated_token::authority = ata_authority,
+    )]
     pub token_user_ata: Account<'info, TokenAccount>,
 
     // Solana SPL Token Program

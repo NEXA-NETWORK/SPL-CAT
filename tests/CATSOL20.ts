@@ -21,7 +21,7 @@ import axios from "axios";
 import fs from "fs";
 
 
-describe("spl_cat", () => {
+describe("cat_sol20", () => {
   const provider = anchor.AnchorProvider.env();
   // Configure the client to use the local cluster.
   anchor.setProvider(provider);
@@ -78,7 +78,7 @@ describe("spl_cat", () => {
         clock: wormhole.clock,
         rent: wormhole.rent,
         systemProgram: anchor.web3.SystemProgram.programId,
-      }).signers([KEYPAIR]).rpc();
+      }).signers([KEYPAIR]).rpc({ skipPreflight: true });
       console.log("Your transaction signature", tx);
     } catch (e: any) {
       console.log(e);
@@ -107,7 +107,7 @@ describe("spl_cat", () => {
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
-      }).signers([KEYPAIR]).rpc();
+      }).signers([KEYPAIR]).rpc({ skipPreflight: true });
       console.log("Your transaction signature", tx);
     } catch (e: any) {
       console.log(e);
@@ -277,8 +277,10 @@ describe("spl_cat", () => {
         Buffer.from("config")
       ], SPL_CAT_PID);
 
-      // The Account that will receive the tokens
-      const tokenUserATA = payload.toAddress;
+      const tokenUserATA = getAssociatedTokenAddressSync(
+        tokenMintPDA,
+        payload.toAddress,
+      );
 
       const foreignChainId = Buffer.alloc(2);
       foreignChainId.writeUInt16LE(payload.tokenChain);
@@ -290,6 +292,7 @@ describe("spl_cat", () => {
 
       const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
         owner: KEYPAIR.publicKey,
+        ataAuthority: payload.toAddress,
         tokenUserAta: tokenUserATA,
         tokenMint: tokenMintPDA,
         tokenProgram: TOKEN_PROGRAM_ID,
@@ -300,7 +303,7 @@ describe("spl_cat", () => {
         received: recievedKey,
         config: configAcc,
         systemProgram: anchor.web3.SystemProgram.programId,
-      }).signers([KEYPAIR]).rpc();
+      }).signers([KEYPAIR]).rpc({ skipPreflight: true });
 
       console.log("Your transaction signature", tx);
     } catch (e: any) {
