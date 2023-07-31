@@ -178,7 +178,7 @@ pub struct MintTokens<'info> {
         associated_token::mint = token_mint,
         associated_token::authority = ata_authority,
     )]
-    pub token_account: Account<'info, TokenAccount>,
+    pub token_user_ata: Account<'info, TokenAccount>,
 
     // Solana SPL Token Program
     pub token_program: Program<'info, Token>,
@@ -230,6 +230,11 @@ pub struct BridgeOut<'info> {
     /// Owner will pay Wormhole fee to post a message and pay for the associated token account.
     pub owner: Signer<'info>,
 
+    /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
+    /// CHECK: This is the authority of the ATA
+    #[account(mut)]
+    pub ata_authority: UncheckedAccount<'info>,
+
     /// Token Mint. The token that is bridged in.
     #[account(
         mut, 
@@ -243,9 +248,9 @@ pub struct BridgeOut<'info> {
     #[account(
         mut,
         associated_token::mint = token_mint,
-        associated_token::authority = owner,
+        associated_token::authority = ata_authority,
     )]
-    pub token_account: Account<'info, TokenAccount>,
+    pub token_user_ata: Account<'info, TokenAccount>,
 
     // Solana SPL Token Program
     pub token_program: Program<'info, Token>,
@@ -326,11 +331,6 @@ pub struct BridgeIn<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
-    /// CHECK: This is the authority of the ATA
-    #[account(mut)]
-    pub ata_authority: UncheckedAccount<'info>,
-
     /// Token Mint. The token that is bridged in.
     #[account(
         mut, 
@@ -341,13 +341,8 @@ pub struct BridgeIn<'info> {
 
     // Token Account. Its an Associated Token Account that will hold the
     // tokens that are bridged in.
-    #[account(
-        init_if_needed,
-        payer = owner,
-        associated_token::mint = token_mint,
-        associated_token::authority = ata_authority,
-    )]
-    pub token_account: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub token_user_ata: Account<'info, TokenAccount>,
 
     // Solana SPL Token Program
     pub token_program: Program<'info, Token>,

@@ -1,9 +1,6 @@
 use anchor_lang::{prelude::Pubkey, AnchorDeserialize, AnchorSerialize};
 use std::io::{self, Read, Write};
 
-// NOTE: Solana Uses Big Endian, Ethereum uses Little Endian
-// NOTE: Solana uses 8 byte u64, Ethereum uses 32 byte u256
-
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct CrossChainStruct {
     pub amount: U256,

@@ -39,9 +39,13 @@ pub enum ErrorFactory {
     /// Deserialized message has unexpected payload type.
     InvalidMessage,
 
-    #[msg("The Off Chain ATA Address Does Not Match The Address of the Payload")]
+    #[msg("InvalidATAAccount: The ATA account is not Initialized or is Frozen")]
+    /// The ATA account is not Initialized
+    InvalidATAAccount,
+
+    #[msg("MisMatchdATAAddress: The Off Chain ATA Address Does Not Match The Address of the Payload")]
     /// The ATA sent in the instruction does not match the ATA of the payload from wormhole.
-    InvalidATAAddress,
+    MisMatchdATAAddress,
 
     #[msg("InvalidAmount: The difference between local and foreign decimals is too large and is causing an overflow.")]
     /// The difference between local and foreign decimals is too large and is causing an overflow.
