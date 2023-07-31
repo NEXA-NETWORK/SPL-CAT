@@ -78,7 +78,7 @@ describe("spl_cat", () => {
         clock: wormhole.clock,
         rent: wormhole.rent,
         systemProgram: anchor.web3.SystemProgram.programId,
-      }).signers([KEYPAIR]).rpc({ skipPreflight: true });
+      }).signers([KEYPAIR]).rpc();
       console.log("Your transaction signature", tx);
     } catch (e: any) {
       console.log(e);
@@ -107,7 +107,7 @@ describe("spl_cat", () => {
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
-      }).signers([KEYPAIR]).rpc({ skipPreflight: true });
+      }).signers([KEYPAIR]).rpc();
       console.log("Your transaction signature", tx);
     } catch (e: any) {
       console.log(e);
@@ -200,6 +200,7 @@ describe("spl_cat", () => {
       let recipientChain = 2;
       const tx = await program.methods.bridgeOut(amount, recipientChain, recipient).accounts({
         owner: KEYPAIR.publicKey,
+        ataAuthority: KEYPAIR.publicKey,
         // Token Stuff
         tokenUserAta: tokenUserATA,
         tokenMint: tokenMintPDA,
@@ -276,7 +277,9 @@ describe("spl_cat", () => {
         Buffer.from("config")
       ], SPL_CAT_PID);
 
+      // The Account that will receive the tokens
       const tokenUserATA = payload.toAddress;
+
       const foreignChainId = Buffer.alloc(2);
       foreignChainId.writeUInt16LE(payload.tokenChain);
 
@@ -297,7 +300,7 @@ describe("spl_cat", () => {
         received: recievedKey,
         config: configAcc,
         systemProgram: anchor.web3.SystemProgram.programId,
-      }).signers([KEYPAIR]).rpc({ skipPreflight: true });
+      }).signers([KEYPAIR]).rpc();
 
       console.log("Your transaction signature", tx);
     } catch (e: any) {

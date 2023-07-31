@@ -42,7 +42,15 @@ impl AnchorSerialize for CATSOLStructs {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
         match self {
             CATSOLStructs::Alive { program_id } => program_id.serialize(writer),
-            CATSOLStructs::CrossChainPayload { payload } => payload.serialize(writer),
+            CATSOLStructs::CrossChainPayload { payload } => {
+                payload.amount.serialize(writer)?;
+                writer.write_all(&payload.token_address)?;
+                writer.write_all(&payload.token_chain.to_be_bytes())?;
+                writer.write_all(&payload.to_address)?;
+                writer.write_all(&payload.to_chain.to_be_bytes())?;
+                writer.write_all(&payload.token_decimals.to_le_bytes())?;
+                Ok(())
+            }
         }
     }
 }

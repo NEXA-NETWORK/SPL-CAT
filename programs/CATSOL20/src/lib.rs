@@ -111,7 +111,6 @@ pub mod cat_sol20 {
                 ) {
                     Ok(_) => {}
                     Err(e) => {
-                        msg!("Error Paying Fee: {:?}", e);
                         return Err(e.into());
                     }
                 }
@@ -159,7 +158,6 @@ pub mod cat_sol20 {
             ) {
                 Ok(_) => {}
                 Err(e) => {
-                    msg!("Error Posting Message: {:?}", e);
                     return Err(e);
                 }
             }
@@ -188,7 +186,6 @@ pub mod cat_sol20 {
         match mint_to(cpi_ctx, amount) {
             Ok(_) => {}
             Err(e) => {
-                msg!("Error Minting Tokens: {:?}", e);
                 return Err(e);
             }
         }
@@ -214,12 +211,6 @@ pub mod cat_sol20 {
         let emitter = &mut ctx.accounts.foreign_emitter;
         emitter.chain = chain;
         emitter.address = address;
-
-        msg!(
-            "Registered foreign emitter: \nchain={}, \naddress={:?}",
-            chain,
-            address
-        );
 
         // Done.
         Ok(())
@@ -256,14 +247,11 @@ pub mod cat_sol20 {
         match burn(cpi_ctx, amount) {
             Ok(_) => {}
             Err(e) => {
-                msg!("Error Burning Tokens: {:?}", e);
                 return Err(e);
             }
         }
 
-        let wormhole_emitter = &ctx.accounts.wormhole_emitter;
-        let config = &ctx.accounts.config;
-
+        // Create the payload
         let payload = CrossChainStruct {
             amount: U256::from(amount),
             token_address: ctx.accounts.token_user_ata.key().to_bytes(),
@@ -272,13 +260,15 @@ pub mod cat_sol20 {
             to_chain: recipient_chain,
             token_decimals: ctx.accounts.token_mint.decimals,
         };
-        msg!("Payload: {:?}", payload);
-
+        
+        // Serialize the payload
         let cat_sol_struct = CATSOLStructs::CrossChainPayload { payload };
         let mut encoded_payload: Vec<u8> = Vec::new();
         cat_sol_struct.serialize(&mut encoded_payload)?;
 
-        msg!("Encoded Payload: {:?}", encoded_payload);
+        
+        let wormhole_emitter = &ctx.accounts.wormhole_emitter;
+        let config = &ctx.accounts.config;
 
         // Invoke `wormhole::post_message`.
         //
@@ -317,7 +307,6 @@ pub mod cat_sol20 {
         ) {
             Ok(_) => {}
             Err(e) => {
-                msg!("Error Posting Message: {:?}", e);
                 return Err(e);
             }
         }
@@ -331,7 +320,6 @@ pub mod cat_sol20 {
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
-
             let ata_address = &Pubkey::from(payload.to_address);
 
             // Check if the ATA address is valid
@@ -352,8 +340,6 @@ pub mod cat_sol20 {
                 None => return Err(ErrorFactory::InvalidAmount.into()),
             };
 
-            msg!("Normalized Amount: {:?}", normalize_amount);
-
             // Check if the amount doesn't exceed the max supply
             if normalize_amount + config.minted_supply > config.max_supply {
                 return Err(ErrorFactory::IvalidMintAmount.into());
@@ -371,7 +357,6 @@ pub mod cat_sol20 {
             match mint_to(cpi_ctx, normalize_amount) {
                 Ok(_) => {}
                 Err(e) => {
-                    msg!("Error Minting Tokens: {:?}", e);
                     return Err(e);
                 }
             }
