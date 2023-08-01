@@ -8,11 +8,14 @@ import { PublicKey } from "@solana/web3.js";
 import {
   getEmitterAddressEth,
   getEmitterAddressSolana,
+  tryNativeToUint8Array,
+  tryHexToNativeString,
   parseSequenceFromLogSolana,
   postVaaSolanaWithRetry,
   getSignedVAAHash,
   CHAINS,
   parseVaa,
+  tryUint8ArrayToNative,
 } from '@certusone/wormhole-sdk';
 import { getWormholeCpiAccounts, getPostMessageCpiAccounts } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { getProgramSequenceTracker, derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
@@ -42,7 +45,6 @@ describe("cat_sol20", () => {
   // The Bridge out VAA will be saved here and used for Bridge In
   let VAA: any = null;
 
-
   it("Can Initialize and Create a Mint", async () => {
     try {
       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
@@ -61,6 +63,7 @@ describe("cat_sol20", () => {
       );
 
       let max_supply = new anchor.BN("10000000000000000000");
+      // let max_supply = new anchor.BN("0");
 
       const tx = await program.methods.initialize(9, max_supply, "TESTING", "TST", "").accounts({
         owner: KEYPAIR.publicKey,
@@ -126,7 +129,7 @@ describe("cat_sol20", () => {
       ], SPL_CAT_PID)
 
       // Replace this with the Eth Contract
-      const ethContractAddress = "0x0E696947A06550DEf604e82C26fd9E493e576337";
+      const ethContractAddress = "0x970e8f18ebfEa0B08810f33a5A40438b9530FBCF";
       let targetEmitterAddress: string | number[] = getEmitterAddressEth(ethContractAddress);
       targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
 
@@ -158,11 +161,19 @@ describe("cat_sol20", () => {
         Buffer.from("config")
       ], SPL_CAT_PID);
 
-      // Sure this acc is initialized and has tokens
+      // Make Sure this acc is initialized and has tokens
       const tokenUserATA = getAssociatedTokenAddressSync(
         tokenMintPDA,
         KEYPAIR.publicKey,
       );
+
+      const foreignChainId = Buffer.alloc(2);
+      foreignChainId.writeUInt16LE(CHAINS.ethereum);
+
+      const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
+        Buffer.from("foreign_emitter"),
+        foreignChainId,
+      ], SPL_CAT_PID)
 
       // get sequence
       const SequenceTracker = await getProgramSequenceTracker(provider.connection, SPL_CAT_PID, CORE_BRIDGE_PID)
@@ -189,11 +200,7 @@ describe("cat_sol20", () => {
 
       // User's Ethereum address
       let userEthAddress = "0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1";
-      let recipient = Array.from(Buffer.from(userEthAddress.slice(2), "hex"))
-      // Pad to 32 bytes
-      while (recipient.length < 32) {
-        recipient.unshift(0);
-      }
+      let recipient = Array.from(tryNativeToUint8Array(userEthAddress, "ethereum"));
 
       // Parameters
       let amount = new anchor.BN("10000000000000000");
@@ -208,6 +215,7 @@ describe("cat_sol20", () => {
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         // Wormhole Stuff
         wormholeProgram: CORE_BRIDGE_PID,
+        foreignEmitter: emitterAcc,
         config: configAcc,
         ...wormholeAccounts,
       }).signers([KEYPAIR]).rpc();
@@ -243,7 +251,6 @@ describe("cat_sol20", () => {
   });
 
   it("Bridge In", async () => {
-
     try {
       await postVaaSolanaWithRetry(
         provider.connection,

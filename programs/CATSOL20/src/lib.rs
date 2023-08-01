@@ -1,18 +1,18 @@
 use anchor_lang::prelude::*;
 
 pub use cat_struct::*;
+pub use constants::*;
 pub use context::*;
 pub use error::*;
 pub use state::*;
 pub use utils::*;
-pub use constants::*;
 
 pub mod cat_struct;
+pub mod constants;
 pub mod context;
 pub mod error;
 pub mod state;
 pub mod utils;
-pub mod constants;
 
 declare_id!("9oMo3tUy3gBYi9FHEDF8YFQBryiUXLqq8wi4Ztsd186Y");
 
@@ -22,7 +22,7 @@ pub mod cat_sol20 {
     use anchor_lang::solana_program::{self, program::invoke};
     use anchor_spl::{
         associated_token,
-        token::{burn, mint_to, Burn, MintTo}
+        token::{burn, mint_to, Burn, MintTo},
     };
     use mpl_token_metadata::instruction::create_metadata_accounts_v3;
     use wormhole_anchor_sdk::wormhole;
@@ -240,10 +240,6 @@ pub mod cat_sol20 {
             )?;
         }
 
-        // Normalize the amount to a Standard 8 decimals
-        let decimals = ctx.accounts.token_mint.decimals;
-        let normalized_amount = utils_cat::normalize_amount(amount, decimals);
-
         // Burn the tokens
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_accounts = Burn {
@@ -253,16 +249,20 @@ pub mod cat_sol20 {
         };
         let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
 
-        match burn(cpi_ctx, normalized_amount) {
+        match burn(cpi_ctx, amount) {
             Ok(_) => {}
             Err(e) => {
                 return Err(e);
             }
         }
 
+        // Normalize the amount to a Standard 8 decimals
+        let decimals = ctx.accounts.token_mint.decimals;
+        let foreign_amount = utils_cat::normalize_amount(amount, decimals);
+
         // Create the payload
         let payload = CrossChainStruct {
-            amount: U256::from(amount),
+            amount: U256::from(foreign_amount),
             token_address: ctx.accounts.token_user_ata.key().to_bytes(),
             token_chain: wormhole::CHAIN_ID_SOLANA,
             to_address: recipient,
@@ -275,15 +275,9 @@ pub mod cat_sol20 {
         let mut encoded_payload: Vec<u8> = Vec::new();
         cat_sol_struct.serialize(&mut encoded_payload)?;
 
-        
         let wormhole_emitter = &ctx.accounts.wormhole_emitter;
         let config = &ctx.accounts.config;
 
-        // Invoke `wormhole::post_message`.
-        //
-        // `wormhole::post_message` requires two signers: one for the emitter
-        // and another for the wormhole message data. Both of these accounts
-        // are owned by this program.
         match wormhole::post_message(
             CpiContext::new_with_signer(
                 ctx.accounts.wormhole_program.to_account_info(),
@@ -325,7 +319,6 @@ pub mod cat_sol20 {
     }
 
     pub fn bridge_in(ctx: Context<BridgeIn>, vaa_hash: [u8; 32]) -> Result<()> {
-        let config = &mut ctx.accounts.config;
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
@@ -344,15 +337,7 @@ pub mod cat_sol20 {
             // Normalize the amount by converting it back from the standard 8 decimals to the token's decimals
             let amount_u64: u64 = payload.amount.into();
             let decimals = ctx.accounts.token_mint.decimals;
-            let normalized_amount = utils_cat::denormalize_amount(
-                amount_u64,
-                decimals,
-            );
-
-            // Check if the amount doesn't exceed the max supply
-            if normalized_amount + config.minted_supply > config.max_supply {
-                return Err(ErrorFactory::IvalidMintAmount.into());
-            }
+            let normalized_amount = utils_cat::denormalize_amount(amount_u64, decimals);
 
             // Mint the tokens
             let cpi_program = ctx.accounts.token_program.to_account_info();
@@ -369,7 +354,6 @@ pub mod cat_sol20 {
                     return Err(e);
                 }
             }
-            config.minted_supply += normalized_amount;
 
             // Serialize the payload to save it
             let mut serialized_payload: Vec<u8> = Vec::new();

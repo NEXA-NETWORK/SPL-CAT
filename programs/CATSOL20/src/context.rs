@@ -146,9 +146,9 @@ pub struct MintTokens<'info> {
     pub owner: Signer<'info>,
 
     #[account(
-        mut,
+        has_one = owner @ ErrorFactory::OwnerOnly,
         seeds = [Config::SEED_PREFIX],
-        bump,
+        bump
     )]
     pub config: Box<Account<'info, Config>>,
 
@@ -220,6 +220,7 @@ pub struct RegisterEmitter<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction(amount: u64, recipient_chain: u16, recipient: [u8; 32])]
 pub struct BridgeOut<'info> {
     #[account(mut)]
     /// Owner will pay Wormhole fee to post a message and pay for the associated token account.
@@ -308,6 +309,17 @@ pub struct BridgeOut<'info> {
     /// CHECK: Wormhole Message. [`wormhole::post_message`] requires this
     /// account be mutable.
     pub wormhole_message: UncheckedAccount<'info>,
+
+    #[account(
+        seeds = [
+            ForeignEmitter::SEED_PREFIX,
+            &recipient_chain.to_le_bytes()[..]
+        ],
+        bump,
+        constraint = foreign_emitter.chain == recipient_chain
+    )]
+    /// Foreign Emitter account should exist for the recipient chain. Read-only.
+    pub foreign_emitter: Account<'info, ForeignEmitter>,
 
     /// System program.
     pub system_program: Program<'info, System>,
