@@ -200,6 +200,13 @@ pub mod cat_sol20 {
         Ok(())
     }
 
+    pub fn transfer_ownership(ctx: Context<TransferOwnership>) -> Result<()> {
+        let config = &mut ctx.accounts.config;
+        config.owner = ctx.accounts.new_owner.key();
+        Ok(())
+    }
+
+
     pub fn register_emitter(
         ctx: Context<RegisterEmitter>,
         chain: u16,
