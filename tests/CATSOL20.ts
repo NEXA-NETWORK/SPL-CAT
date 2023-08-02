@@ -83,7 +83,13 @@ describe("cat_sol20", () => {
       let max_supply = new anchor.BN("10000000000000000000");
       // let max_supply = new anchor.BN("0");
 
-      const tx = await program.methods.initialize(9, max_supply, "TESTING", "TST", "").accounts({
+      const tx = await program.methods.initialize({
+        decimals: 9,
+        maxSupply: max_supply,
+        name: "Cat Token",
+        symbol: "CAT",
+        uri: "",
+      }).accounts({
         owner: KEYPAIR.publicKey,
         config: configAcc,
         tokenMint: tokenMintPDA,
@@ -197,7 +203,10 @@ describe("cat_sol20", () => {
         Buffer.from("config")
       ], SPL_CAT_PID);
 
-      const tx = await program.methods.registerEmitter(2, targetEmitterAddress).accounts({
+      const tx = await program.methods.registerEmitter({
+        chain: CHAINS.ethereum,
+        address: targetEmitterAddress,
+      }).accounts({
         owner: newOwner.publicKey,
         config: configAcc,
         foreignEmitter: emitterAcc,
@@ -265,7 +274,11 @@ describe("cat_sol20", () => {
       // Parameters
       let amount = new anchor.BN("10000000000000000");
       let recipientChain = 2;
-      const tx = await program.methods.bridgeOut(amount, recipientChain, recipient).accounts({
+      const tx = await program.methods.bridgeOut({
+        amount,
+        recipientChain,
+        recipient,
+      }).accounts({
         owner: newOwner.publicKey,
         ataAuthority: newOwner.publicKey,
         // Token Stuff
