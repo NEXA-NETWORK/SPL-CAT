@@ -3,16 +3,25 @@ import { Program } from "@coral-xyz/anchor";
 import { CatSol20 } from "../target/types/cat_sol20";
 import { TOKEN_METADATA_PROGRAM_ID } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from "@solana/spl-token"
-import { PublicKey } from "@solana/web3.js";
+import {
+  getAssociatedTokenAddressSync,
+  TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+  createSetAuthorityInstruction,
+  AuthorityType
+} from "@solana/spl-token"
+import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
 import {
   getEmitterAddressEth,
   getEmitterAddressSolana,
+  tryNativeToUint8Array,
+  tryHexToNativeString,
   parseSequenceFromLogSolana,
   postVaaSolanaWithRetry,
   getSignedVAAHash,
   CHAINS,
   parseVaa,
+  tryUint8ArrayToNative,
 } from '@certusone/wormhole-sdk';
 import { getWormholeCpiAccounts, getPostMessageCpiAccounts } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { getProgramSequenceTracker, derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
@@ -21,7 +30,7 @@ import axios from "axios";
 import fs from "fs";
 
 
-describe("spl_cat", () => {
+describe("cat_sol20", () => {
   const provider = anchor.AnchorProvider.env();
   // Configure the client to use the local cluster.
   anchor.setProvider(provider);
@@ -33,6 +42,9 @@ describe("spl_cat", () => {
   // The Owner of the token mint
   const KEYPAIR = anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('/home/ace/.config/solana/id.json').toString())));
 
+  // The new owner of the token mint
+  const newOwner = anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('/home/ace/.config/solana/id2.json').toString())));
+
   // The Token Mint we will use for testing
   const tokenMintPDA = PublicKey.findProgramAddressSync([Buffer.from("spl_cat_token")], SPL_CAT_PID)[0];
 
@@ -42,6 +54,14 @@ describe("spl_cat", () => {
   // The Bridge out VAA will be saved here and used for Bridge In
   let VAA: any = null;
 
+  it("Fund New owner with some SOL", async () => {
+    try {
+      const tx = await provider.connection.requestAirdrop(newOwner.publicKey, 10 * LAMPORTS_PER_SOL);
+      console.log("Your transaction signature", tx);
+    } catch (e: any) {
+      console.log(e);
+    }
+  });
 
   it("Can Initialize and Create a Mint", async () => {
     try {
@@ -61,8 +81,15 @@ describe("spl_cat", () => {
       );
 
       let max_supply = new anchor.BN("10000000000000000000");
+      // let max_supply = new anchor.BN("0");
 
-      const tx = await program.methods.initialize(9, max_supply, "TESTING", "TST", "").accounts({
+      const tx = await program.methods.initialize({
+        decimals: 9,
+        maxSupply: max_supply,
+        name: "Cat Token",
+        symbol: "CAT",
+        uri: "",
+      }).accounts({
         owner: KEYPAIR.publicKey,
         config: configAcc,
         tokenMint: tokenMintPDA,
@@ -85,6 +112,48 @@ describe("spl_cat", () => {
     }
   });
 
+
+  it("Can Transfer Config Ownership", async () => {
+    try {
+
+      const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+        Buffer.from("config")
+      ], SPL_CAT_PID);
+
+      const tx = await program.methods.transferOwnership().accounts({
+        owner: KEYPAIR.publicKey,
+        newOwner: newOwner.publicKey,
+        config: configAcc,
+      }).signers([KEYPAIR, newOwner]).rpc();
+      console.log("Your transaction signature", tx);
+
+    } catch (e: any) {
+      console.log(e);
+    }
+  })
+
+  it("Can Transfer Mint Authority", async () => {
+    try {
+
+      let transaction = new anchor.web3.Transaction();
+      transaction.add(
+        createSetAuthorityInstruction(
+          tokenMintPDA,
+          KEYPAIR.publicKey,
+          AuthorityType.MintTokens,
+          newOwner.publicKey
+        )
+      );
+      const tx = await anchor.web3.sendAndConfirmTransaction(provider.connection, transaction, [KEYPAIR]);
+      console.log("Your transaction signature", tx);
+
+
+    } catch (e: any) {
+      console.log(e);
+    }
+  })
+
+
   it("Can Mint Tokens", async () => {
     try {
 
@@ -94,20 +163,20 @@ describe("spl_cat", () => {
 
       const tokenUserATA = getAssociatedTokenAddressSync(
         tokenMintPDA,
-        KEYPAIR.publicKey,
+        newOwner.publicKey,
       );
 
       let amount = new anchor.BN("100000000000000000");
       const tx = await program.methods.mintTokens(amount).accounts({
-        owner: KEYPAIR.publicKey,
-        ataAuthority: KEYPAIR.publicKey,
+        owner: newOwner.publicKey,
+        ataAuthority: newOwner.publicKey,
         config: configAcc,
         tokenMint: tokenMintPDA,
         tokenUserAta: tokenUserATA,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         systemProgram: anchor.web3.SystemProgram.programId,
-      }).signers([KEYPAIR]).rpc({ skipPreflight: true });
+      }).signers([newOwner]).rpc({ skipPreflight: true });
       console.log("Your transaction signature", tx);
     } catch (e: any) {
       console.log(e);
@@ -126,7 +195,7 @@ describe("spl_cat", () => {
       ], SPL_CAT_PID)
 
       // Replace this with the Eth Contract
-      const ethContractAddress = "0x0E696947A06550DEf604e82C26fd9E493e576337";
+      const ethContractAddress = "0x970e8f18ebfEa0B08810f33a5A40438b9530FBCF";
       let targetEmitterAddress: string | number[] = getEmitterAddressEth(ethContractAddress);
       targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
 
@@ -134,13 +203,16 @@ describe("spl_cat", () => {
         Buffer.from("config")
       ], SPL_CAT_PID);
 
-      const tx = await program.methods.registerEmitter(2, targetEmitterAddress).accounts({
-        owner: KEYPAIR.publicKey,
+      const tx = await program.methods.registerEmitter({
+        chain: CHAINS.ethereum,
+        address: targetEmitterAddress,
+      }).accounts({
+        owner: newOwner.publicKey,
         config: configAcc,
         foreignEmitter: emitterAcc,
         systemProgram: anchor.web3.SystemProgram.programId
       })
-        .signers([KEYPAIR])
+        .signers([newOwner])
         .rpc();
 
       console.log("Your transaction signature", tx);
@@ -158,11 +230,19 @@ describe("spl_cat", () => {
         Buffer.from("config")
       ], SPL_CAT_PID);
 
-      // Sure this acc is initialized and has tokens
+      // Make Sure this acc is initialized and has tokens
       const tokenUserATA = getAssociatedTokenAddressSync(
         tokenMintPDA,
-        KEYPAIR.publicKey,
+        newOwner.publicKey,
       );
+
+      const foreignChainId = Buffer.alloc(2);
+      foreignChainId.writeUInt16LE(CHAINS.ethereum);
+
+      const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
+        Buffer.from("foreign_emitter"),
+        foreignChainId,
+      ], SPL_CAT_PID)
 
       // get sequence
       const SequenceTracker = await getProgramSequenceTracker(provider.connection, SPL_CAT_PID, CORE_BRIDGE_PID)
@@ -183,23 +263,24 @@ describe("spl_cat", () => {
       const wormholeAccounts = getPostMessageCpiAccounts(
         SPL_CAT_PID,
         CORE_BRIDGE_PID,
-        KEYPAIR.publicKey,
+        newOwner.publicKey,
         SequenceTracker
       );
 
       // User's Ethereum address
       let userEthAddress = "0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1";
-      let recipient = Array.from(Buffer.from(userEthAddress.slice(2), "hex"))
-      // Pad to 32 bytes
-      while (recipient.length < 32) {
-        recipient.unshift(0);
-      }
+      let recipient = Array.from(tryNativeToUint8Array(userEthAddress, "ethereum"));
 
       // Parameters
       let amount = new anchor.BN("10000000000000000");
       let recipientChain = 2;
-      const tx = await program.methods.bridgeOut(amount, recipientChain, recipient).accounts({
-        owner: KEYPAIR.publicKey,
+      const tx = await program.methods.bridgeOut({
+        amount,
+        recipientChain,
+        recipient,
+      }).accounts({
+        owner: newOwner.publicKey,
+        ataAuthority: newOwner.publicKey,
         // Token Stuff
         tokenUserAta: tokenUserATA,
         tokenMint: tokenMintPDA,
@@ -207,9 +288,10 @@ describe("spl_cat", () => {
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         // Wormhole Stuff
         wormholeProgram: CORE_BRIDGE_PID,
+        foreignEmitter: emitterAcc,
         config: configAcc,
         ...wormholeAccounts,
-      }).signers([KEYPAIR]).rpc();
+      }).signers([newOwner]).rpc();
 
       console.log("Your transaction signature", tx);
       await new Promise((r) => setTimeout(r, 3000)); // Wait for tx to be confirmed
@@ -242,16 +324,15 @@ describe("spl_cat", () => {
   });
 
   it("Bridge In", async () => {
-
     try {
       await postVaaSolanaWithRetry(
         provider.connection,
         async (tx) => {
-          tx.partialSign(KEYPAIR);
+          tx.partialSign(newOwner);
           return tx;
         },
         CORE_BRIDGE_PID,
-        KEYPAIR.publicKey.toString(),
+        newOwner.publicKey.toString(),
         Buffer.from(VAA, "base64"),
         10
       );
@@ -290,7 +371,7 @@ describe("spl_cat", () => {
       ], SPL_CAT_PID)
 
       const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
-        owner: KEYPAIR.publicKey,
+        owner: newOwner.publicKey,
         ataAuthority: payload.toAddress,
         tokenUserAta: tokenUserATA,
         tokenMint: tokenMintPDA,
@@ -302,7 +383,7 @@ describe("spl_cat", () => {
         received: recievedKey,
         config: configAcc,
         systemProgram: anchor.web3.SystemProgram.programId,
-      }).signers([KEYPAIR]).rpc({ skipPreflight: true });
+      }).signers([newOwner]).rpc({ skipPreflight: true });
 
       console.log("Your transaction signature", tx);
     } catch (e: any) {
