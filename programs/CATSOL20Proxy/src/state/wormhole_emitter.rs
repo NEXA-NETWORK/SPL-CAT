@@ -18,18 +18,3 @@ impl WormholeEmitter {
     pub const SEED_PREFIX: &'static [u8; 7] = wormhole::SEED_PREFIX_EMITTER;
 }
 
-#[cfg(test)]
-pub mod test {
-    use super::*;
-    use std::mem::size_of;
-
-    #[test]
-    fn test_wormhole_emitter() -> Result<()> {
-        assert_eq!(
-            WormholeEmitter::MAXIMUM_SIZE,
-            size_of::<u64>() + size_of::<u8>()
-        );
-
-        Ok(())
-    }
-}

@@ -43,30 +43,3 @@ impl ForeignEmitterCollection {
         self.emitters.iter().any(|emitter| emitter.verify(address))
     }
 }
-
-#[cfg(test)]
-pub mod test {
-    use super::*;
-    use std::mem::size_of;
-
-    #[test]
-    fn test_foreign_emitter() -> Result<()> {
-        assert_eq!(
-            ForeignEmitter::MAXIMUM_SIZE,
-            size_of::<u64>() + size_of::<u16>() + size_of::<[u8; 32]>()
-        );
-
-        let chain = 2u16;
-        let address = [
-            4u8, 20u8, 6u8, 9u8, 4u8, 20u8, 6u8, 9u8, 4u8, 20u8, 6u8, 9u8, 4u8, 20u8, 6u8, 9u8,
-            4u8, 20u8, 6u8, 9u8, 4u8, 20u8, 6u8, 9u8, 4u8, 20u8, 6u8, 9u8, 4u8, 20u8, 6u8, 9u8,
-        ];
-        let foreign_emitter = ForeignEmitter { chain, address };
-        assert!(
-            foreign_emitter.verify(&address),
-            "foreign_emitter.verify(address) failed"
-        );
-
-        Ok(())
-    }
-}

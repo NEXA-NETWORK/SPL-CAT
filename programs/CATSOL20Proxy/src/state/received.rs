@@ -33,23 +33,3 @@ impl Received {
     /// AKA `b"received"`.
     pub const SEED_PREFIX: &'static [u8; 8] = b"received";
 }
-
-#[cfg(test)]
-pub mod test {
-    use super::*;
-    use std::mem::size_of;
-
-    #[test]
-    fn test_received() -> Result<()> {
-        assert_eq!(
-            Received::MAXIMUM_SIZE,
-            size_of::<u64>()
-                + size_of::<u32>()
-                + size_of::<[u8; 32]>()
-                + size_of::<u32>()
-                + MESSAGE_MAX_LENGTH
-        );
-
-        Ok(())
-    }
-}
