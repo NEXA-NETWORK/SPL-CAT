@@ -4,7 +4,7 @@ import { CatSol20Proxy } from "../../target/types/cat_sol20_proxy";
 import { TestToken } from "../../target/types/test_token";
 import { TOKEN_METADATA_PROGRAM_ID } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, approve } from "@solana/spl-token"
+import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID, approve, createApproveInstruction } from "@solana/spl-token"
 import { PublicKey } from "@solana/web3.js";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import {
@@ -41,6 +41,10 @@ describe("cat_sol20_proxy", () => {
     testTokenMintPDA,
     TEST_KEYPAIR.publicKey,
   );
+  // Token Decimals
+  const decimals = 9;
+  const ten = new anchor.BN(10);
+  const oneToken = new anchor.BN(1).mul(ten.pow(new anchor.BN(decimals)));
 
   /// ------------------------------------------- PROXY CONTRACT ------------------------------------------- ///
   /// Program
@@ -59,20 +63,31 @@ describe("cat_sol20_proxy", () => {
   // The Bridge out VAA will be saved here and used for Bridge In
   let VAA: any = null;
 
+  it("Fund New owner with some SOL", async () => {
+    try {
+      const newOwnertx = await provider.connection.requestAirdrop(NEW_OWNER_KEYPAIR.publicKey, 100 * LAMPORTS_PER_SOL);
+      console.log("Your newOwnertx transaction signature", newOwnertx);
+
+      const testKeypair = await provider.connection.requestAirdrop(TEST_KEYPAIR.publicKey, 100 * LAMPORTS_PER_SOL);
+      console.log("Your testKeypair transaction signature", testKeypair);
+
+      await new Promise((r) => setTimeout(r, 3000)); // Wait for tx to be finalized
+    } catch (e: any) {
+      console.log(e);
+    }
+  });
 
   it("TEST TOKEN: Initialize & Mint", async () => {
     try {
-      await provider.connection.requestAirdrop(TEST_KEYPAIR.publicKey, 10 * LAMPORTS_PER_SOL);
+
       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("config")
       ], TEST_SPL_PID);
 
+      const max_supply = new anchor.BN(100000).mul(oneToken);
+      const amount = new anchor.BN(100000).mul(oneToken);
 
-      let max_supply = new anchor.BN("10000000000000000000");
-      let amount = new anchor.BN("100000000000000000");
-
-
-      const tx = await testTokenProgram.methods.initialize(9, max_supply, amount).accounts({
+      const tx = await testTokenProgram.methods.initialize(decimals, max_supply, amount).accounts({
         owner: TEST_KEYPAIR.publicKey,
         ataAuthority: TEST_KEYPAIR.publicKey,
         config: configAcc,
@@ -140,8 +155,9 @@ describe("cat_sol20_proxy", () => {
       ], SPL_CAT_PROXY_PID);
 
       // Replace this with the Eth Contract
-      const ethContractAddress = "0x970e8f18ebfEa0B08810f33a5A40438b9530FBCF";
+      const ethContractAddress = "0xDb56f2e9369E0D7bD191099125a3f6C370F8ed15";
       let targetEmitterAddress: string | number[] = getEmitterAddressEth(ethContractAddress);
+      console.log("Target Emitter Address: ", targetEmitterAddress);
       targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
 
       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
@@ -171,6 +187,14 @@ describe("cat_sol20_proxy", () => {
 
     try {
 
+      const foreignChainId = Buffer.alloc(2);
+      foreignChainId.writeUInt16LE(CHAINS.ethereum);
+
+      const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
+        Buffer.from("foreign_emitter"),
+        foreignChainId,
+      ], SPL_CAT_PROXY_PID);
+
       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("config")
       ], SPL_CAT_PROXY_PID);
@@ -183,7 +207,6 @@ describe("cat_sol20_proxy", () => {
         tokenATAPDA,
         true
       );
-    
 
       // get sequence
       const SequenceTracker = await getProgramSequenceTracker(provider.connection, SPL_CAT_PROXY_PID, CORE_BRIDGE_PID)
@@ -213,18 +236,22 @@ describe("cat_sol20_proxy", () => {
       let recipient = Array.from(tryNativeToUint8Array(userEthAddress, "ethereum"));
 
       // Parameters
-      let amount = new anchor.BN("10000000000000000");
+
+      let amount = new anchor.BN(10000).mul(oneToken);
       let recipientChain = 2;
 
-      // Approve the tokens for bridge out
-      const approveTx = approve(
-        provider.connection,
-        KEYPAIR,
-        testTokenMintPDA,
-        tokenATAPDA,
-        TEST_KEYPAIR,
-        BigInt("10000000000000000")
+      // Approve
+      const transaction = new anchor.web3.Transaction();
+      transaction.add(
+        createApproveInstruction(
+          testTokenUserATA,
+          tokenATAPDA,
+          TEST_KEYPAIR.publicKey,
+          BigInt(amount.toString())
+        )
       );
+
+      const approveTx = await anchor.web3.sendAndConfirmTransaction(provider.connection, transaction, [TEST_KEYPAIR])
       console.log("Your Approve transaction signature", approveTx);
 
       // Bridge Out
@@ -243,9 +270,10 @@ describe("cat_sol20_proxy", () => {
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         // Wormhole Stuff
         wormholeProgram: CORE_BRIDGE_PID,
+        foreignEmitter: emitterAcc,
         config: configAcc,
         ...wormholeAccounts,
-      }).signers([KEYPAIR, TEST_KEYPAIR]).rpc({ skipPreflight: true });
+      }).signers([KEYPAIR]).rpc();
 
       console.log("Your transaction signature", tx);
       await new Promise((r) => setTimeout(r, 3000)); // Wait for tx to be confirmed
@@ -277,83 +305,83 @@ describe("cat_sol20_proxy", () => {
     }
   });
 
-  // it("Bridge In", async () => {
-  //   try {
-  //     await postVaaSolanaWithRetry(
-  //       provider.connection,
-  //       async (tx) => {
-  //         tx.partialSign(KEYPAIR);
-  //         return tx;
-  //       },
-  //       CORE_BRIDGE_PID,
-  //       KEYPAIR.publicKey.toString(),
-  //       Buffer.from(VAA, "base64"),
-  //       10
-  //     );
+  it("Bridge In", async () => {
+    try {
+      await postVaaSolanaWithRetry(
+        provider.connection,
+        async (tx) => {
+          tx.partialSign(KEYPAIR);
+          return tx;
+        },
+        CORE_BRIDGE_PID,
+        KEYPAIR.publicKey.toString(),
+        Buffer.from(VAA, "base64"),
+        10
+      );
 
-  //     const parsedVAA = parseVaa(Buffer.from(VAA, 'base64'));
-  //     const payload = getParsedPayload(parsedVAA.payload);
+      const parsedVAA = parseVaa(Buffer.from(VAA, 'base64'));
+      const payload = getParsedPayload(parsedVAA.payload);
+      console.log("Payload: ", payload);
 
-  //     const postedVAAKey = derivePostedVaaKey(CORE_BRIDGE_PID, parsedVAA.hash);
-  //     const recievedKey = PublicKey.findProgramAddressSync(
-  //       [
-  //         Buffer.from("received"),
-  //         (() => {
-  //           const buf = Buffer.alloc(10);
-  //           buf.writeUInt16LE(parsedVAA.emitterChain, 0);
-  //           buf.writeBigInt64LE(parsedVAA.sequence, 2);
-  //           return buf;
-  //         })(),
-  //       ], SPL_CAT_PROXY_PID)[0];
+      const postedVAAKey = derivePostedVaaKey(CORE_BRIDGE_PID, parsedVAA.hash);
+      const recievedKey = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from("received"),
+          (() => {
+            const buf = Buffer.alloc(10);
+            buf.writeUInt16LE(parsedVAA.emitterChain, 0);
+            buf.writeBigInt64LE(parsedVAA.sequence, 2);
+            return buf;
+          })(),
+        ], SPL_CAT_PROXY_PID)[0];
 
 
-  //     const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
-  //       Buffer.from("config")
-  //     ], SPL_CAT_PROXY_PID);
+      const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+        Buffer.from("config")
+      ], SPL_CAT_PROXY_PID);
 
-  //     const tokenUserATA = getAssociatedTokenAddressSync(
-  //       testTokenMintPDA,
-  //       payload.toAddress,
-  //     );
+      const tokenUserATA = getAssociatedTokenAddressSync(
+        testTokenMintPDA,
+        payload.toAddress,
+      );
 
-  //     // PDA for Locking the Tokens
-  //     const tokenATAPDA = PublicKey.findProgramAddressSync([LOCK_PDA_SEED, testTokenUserATA.toBuffer()], SPL_CAT_PROXY_PID)[0];
-  //     // ATA that holds the locked Tokens
-  //     const tokenMintATA = getAssociatedTokenAddressSync(
-  //       testTokenMintPDA,
-  //       tokenATAPDA,
-  //       true
-  //     );
+      // PDA for Locking the Tokens
+      const tokenATAPDA = PublicKey.findProgramAddressSync([LOCK_PDA_SEED, testTokenUserATA.toBuffer()], SPL_CAT_PROXY_PID)[0];
+      // ATA that holds the locked Tokens
+      const tokenMintATA = getAssociatedTokenAddressSync(
+        testTokenMintPDA,
+        tokenATAPDA,
+        true
+      );
 
-  //     const foreignChainId = Buffer.alloc(2);
-  //     foreignChainId.writeUInt16LE(payload.tokenChain);
+      const foreignChainId = Buffer.alloc(2);
+      foreignChainId.writeUInt16LE(payload.tokenChain);
 
-  //     const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
-  //       Buffer.from("foreign_emitter"),
-  //       foreignChainId,
-  //     ], SPL_CAT_PROXY_PID)
+      const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
+        Buffer.from("foreign_emitter"),
+        foreignChainId,
+      ], SPL_CAT_PROXY_PID)
 
-  //     const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
-  //       owner: KEYPAIR.publicKey,
-  //       tokenUserAta: tokenUserATA,
-  //       tokenAtaPda: tokenATAPDA,
-  //       tokenMintAta: tokenMintATA,
-  //       tokenMint: testTokenMintPDA,
-  //       tokenProgram: TOKEN_PROGRAM_ID,
-  //       associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-  //       wormholeProgram: CORE_BRIDGE_PID,
-  //       foreignEmitter: emitterAcc,
-  //       posted: postedVAAKey,
-  //       received: recievedKey,
-  //       config: configAcc,
-  //       systemProgram: anchor.web3.SystemProgram.programId,
-  //     }).signers([KEYPAIR]).rpc();
-
-  //     console.log("Your transaction signature", tx);
-  //   } catch (e: any) {
-  //     console.log(e);
-  //   }
-  // });
+      const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
+        owner: KEYPAIR.publicKey,
+        tokenUserAta: tokenUserATA,
+        tokenAtaPda: tokenATAPDA,
+        tokenMintAta: tokenMintATA,
+        tokenMint: testTokenMintPDA,
+        tokenProgram: TOKEN_PROGRAM_ID,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+        wormholeProgram: CORE_BRIDGE_PID,
+        foreignEmitter: emitterAcc,
+        posted: postedVAAKey,
+        received: recievedKey,
+        config: configAcc,
+        systemProgram: anchor.web3.SystemProgram.programId,
+      }).signers([KEYPAIR]).rpc();
+      console.log("Your transaction signature", tx);
+    } catch (e: any) {
+      console.log(e);
+    }
+  });
 });
 
 
@@ -368,9 +396,9 @@ function getParsedPayload(vaa: Buffer) {
   return {
     amount: BigInt(`0x${amount.toString('hex')}`),
     tokenAddress: tokenAddress.toString('hex'),
-    tokenChain: tokenChain.readUInt16LE(),
+    tokenChain: tokenChain.readUInt16BE(),
     toAddress: new PublicKey(toAddress),
-    toChain: toChain.readUInt16LE(),
+    toChain: toChain.readUInt16BE(),
     tokenDecimals: tokenDecimals.readUInt8()
   }
 }

@@ -112,6 +112,11 @@ impl BridgeIn<'_> {
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
+            require!(
+                payload.to_chain == wormhole::CHAIN_ID_SOLANA,
+                ErrorFactory::InvalidDestinationChain
+            );
+            
             let ata_address = associated_token::get_associated_token_address(
                 &Pubkey::from(payload.to_address),
                 &ctx.accounts.token_mint.key(),
@@ -126,8 +131,11 @@ impl BridgeIn<'_> {
 
             // Normalize the amount by converting it back from the standard 8 decimals to the token's decimals
             let amount_u64: u64 = payload.amount.into();
+            msg!("Amount: {}", amount_u64);
             let decimals = ctx.accounts.token_mint.decimals;
             let normalized_amount = denormalize_amount(amount_u64, decimals);
+            msg!("Normalized amount: {}", normalized_amount);
+            msg!("Balance: {}", ctx.accounts.token_mint_ata.amount);
 
             // Mint the tokens
             let cpi_program = ctx.accounts.token_program.to_account_info();
@@ -143,7 +151,7 @@ impl BridgeIn<'_> {
                 .ok_or(ErrorFactory::BumpNotFound)?;
 
             let cpi_signer_seeds = &[
-                b"cat_spl_token".as_ref(),
+                b"cat_sol_proxy".as_ref(),
                 &ctx.accounts.token_user_ata.key().to_bytes(),
                 &[bump],
             ];

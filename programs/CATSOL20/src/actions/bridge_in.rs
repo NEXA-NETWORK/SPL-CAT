@@ -109,6 +109,11 @@ impl BridgeIn<'_> {
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
+            require!(
+                payload.to_chain == wormhole::CHAIN_ID_SOLANA,
+                ErrorFactory::InvalidDestinationChain
+            );
+
             let ata_address = associated_token::get_associated_token_address(
                 &Pubkey::from(payload.to_address),
                 &ctx.accounts.token_mint.key(),

@@ -1,17 +1,16 @@
+use crate::{
+    cat_struct::{CATSOLStructs, CrossChainStruct, U256},
+    constants::*,
+    error::ErrorFactory,
+    state::{Config, ForeignEmitter, WormholeEmitter},
+    utils_cat::*,
+};
 use anchor_lang::prelude::*;
-use wormhole_anchor_sdk::wormhole;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{transfer, Transfer, Mint,Token, TokenAccount},
-
+    token::{transfer, Mint, Token, TokenAccount, Transfer},
 };
-use crate::{
-    constants::*,
-    utils_cat::*,
-    error::ErrorFactory,
-    cat_struct::{CATSOLStructs, CrossChainStruct, U256},
-    state::{Config, ForeignEmitter, WormholeEmitter}
-};
+use wormhole_anchor_sdk::wormhole;
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct BridgeOutParams {
@@ -59,11 +58,11 @@ pub struct BridgeOut<'info> {
     pub associated_token_program: Program<'info, AssociatedToken>,
 
     // --------------------- Wormhole ---------------------
-
     #[account(
         mut,
         seeds = [Config::SEED_PREFIX],
         bump,
+        constraint = config.native_token == token_mint.key()
     )]
     /// Config account. Wormhole PDAs specified in the config are checked
     /// against the Wormhole accounts in this context. Read-only.
@@ -138,7 +137,7 @@ pub struct BridgeOut<'info> {
 }
 
 impl BridgeOut<'_> {
-    pub fn bridge_out(ctx: Context<BridgeOut>, params: &BridgeOutParams ) -> Result<()> {
+    pub fn bridge_out(ctx: Context<BridgeOut>, params: &BridgeOutParams) -> Result<()> {
         // Pay the Fee
         let fee = ctx.accounts.wormhole_bridge.fee();
         if fee > 0 {
@@ -152,6 +151,7 @@ impl BridgeOut<'_> {
             )?;
         }
 
+        
         // Transfer the tokens
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_accounts = Transfer {
@@ -159,7 +159,19 @@ impl BridgeOut<'_> {
             to: ctx.accounts.token_mint_ata.to_account_info(),
             authority: ctx.accounts.token_ata_pda.to_account_info(),
         };
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        let bump = *ctx
+            .bumps
+            .get("token_ata_pda")
+            .ok_or(ErrorFactory::BumpNotFound)?;
+        let cpi_signer_seeds = &[
+            b"cat_sol_proxy".as_ref(),
+            &ctx.accounts.token_user_ata.key().to_bytes(),
+            &[bump],
+        ];
+        let cpi_signer = &[&cpi_signer_seeds[..]];
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
+
+        let balance_before = ctx.accounts.token_mint_ata.amount;
 
         match transfer(cpi_ctx, params.amount) {
             Ok(_) => {}
@@ -167,10 +179,13 @@ impl BridgeOut<'_> {
                 return Err(e);
             }
         }
+        // Reload the account to get the updated balance
+        ctx.accounts.token_mint_ata.reload()?;
+        let amount_transferred = ctx.accounts.token_mint_ata.amount - balance_before;
 
         // Normalize the amount to a Standard 8 decimals
         let decimals = ctx.accounts.token_mint.decimals;
-        let foreign_amount = normalize_amount(params.amount, decimals);
+        let foreign_amount = normalize_amount(amount_transferred, decimals);
 
         // Create the payload
         let payload = CrossChainStruct {
