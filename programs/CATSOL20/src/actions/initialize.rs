@@ -12,7 +12,7 @@ use crate::{
     state::{Config, WormholeEmitter}
 };
 
-use anchor_lang::solana_program::{self, program::invoke};
+use anchor_lang::solana_program::{self, program::invoke_signed};
 use mpl_token_metadata::instruction::create_metadata_accounts_v3;
 
 #[derive(Clone, AnchorSerialize, AnchorDeserialize)]
@@ -47,7 +47,7 @@ pub struct Initialize<'info> {
         bump,
         payer = owner,
         mint::decimals = params.decimals,
-        mint::authority = owner,
+        mint::authority = token_mint.key(),
     )]
     pub token_mint: Account<'info, Mint>,
 
@@ -155,9 +155,9 @@ impl Initialize<'_> {
                 ctx.accounts.metadata_program.key(),
                 ctx.accounts.metadata_account.key(),
                 ctx.accounts.token_mint.key(),
+                ctx.accounts.token_mint.key(),
                 ctx.accounts.owner.key(),
-                ctx.accounts.owner.key(),
-                ctx.accounts.owner.key(),
+                ctx.accounts.token_mint.key(),
                 params.name.clone(),
                 params.symbol.clone(),
                 params.uri.clone(),
@@ -169,7 +169,19 @@ impl Initialize<'_> {
                 None,
                 None,
             );
-            match invoke(
+
+            let bump = *ctx
+            .bumps
+            .get("token_mint")
+            .ok_or(ErrorFactory::BumpNotFound)?;
+
+            let metadata_signer_seeds = &[
+                b"spl_cat_token".as_ref(),
+                &[bump],
+            ];
+
+
+            match invoke_signed(
                 &create_metadata_account_ix,
                 &[
                     ctx.accounts.owner.to_account_info(),
@@ -178,6 +190,7 @@ impl Initialize<'_> {
                     ctx.accounts.metadata_program.to_account_info(),
                     ctx.accounts.system_program.to_account_info(),
                 ],
+                &[metadata_signer_seeds],
             ) {
                 Ok(_) => {}
                 Err(e) => {
@@ -187,10 +200,7 @@ impl Initialize<'_> {
             }
         }
 
-        ctx.accounts.wormhole_emitter.bump = *ctx
-            .bumps
-            .get("wormhole_emitter")
-            .ok_or(ErrorFactory::BumpNotFound)?;
+        ctx.accounts.wormhole_emitter.bump = *ctx.bumps.get("wormhole_emitter").ok_or(ErrorFactory::BumpNotFound)?;
 
         // Now We will send a message to initialize the Sequence Tracker for future messages
         {

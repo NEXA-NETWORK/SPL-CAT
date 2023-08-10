@@ -109,6 +109,11 @@ impl BridgeIn<'_> {
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
+            require!(
+                payload.to_chain == wormhole::CHAIN_ID_SOLANA,
+                ErrorFactory::InvalidDestinationChain
+            );
+            
             let ata_address = associated_token::get_associated_token_address(
                 &Pubkey::from(payload.to_address),
                 &ctx.accounts.token_mint.key(),
@@ -133,7 +138,18 @@ impl BridgeIn<'_> {
                 to: ctx.accounts.token_user_ata.to_account_info(),
                 authority: ctx.accounts.owner.to_account_info(),
             };
-            let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+            let bump = *ctx
+                .bumps
+                .get("token_mint")
+                .ok_or(ErrorFactory::BumpNotFound)?;
+
+            let cpi_signer_seeds = &[
+                b"spl_cat_token".as_ref(),
+                &[bump],
+            ];
+            let cpi_signer = &[&cpi_signer_seeds[..]];
+
+            let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
 
             match mint_to(cpi_ctx, normalized_amount) {
                 Ok(_) => {}

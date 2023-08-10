@@ -62,9 +62,20 @@ impl MintTokens<'_> {
         let cpi_accounts = MintTo {
             mint: ctx.accounts.token_mint.to_account_info(),
             to: ctx.accounts.token_user_ata.to_account_info(),
-            authority: ctx.accounts.owner.to_account_info(),
+            authority: ctx.accounts.token_mint.to_account_info(),
         };
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        let bump = *ctx
+            .bumps
+            .get("token_mint")
+            .ok_or(ErrorFactory::BumpNotFound)?;
+
+        let cpi_signer_seeds = &[
+            b"spl_cat_token".as_ref(),
+            &[bump],
+        ];
+        let cpi_signer = &[&cpi_signer_seeds[..]];
+
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
 
         match mint_to(cpi_ctx, amount) {
             Ok(_) => {}

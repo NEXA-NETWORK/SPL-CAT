@@ -60,4 +60,10 @@ pub enum ErrorFactory {
 
     #[msg("TokenBurnFailed: The token burn instruction failed.")]
     TokenBurnFailed,
+
+    #[msg("InvalidDestinationChain: The Destination Chain ID is not Solana. Are you sure this VAA is meant for Solana?")]
+    InvalidDestinationChain,
+
+    #[msg("AlreadyOwner: The account is already the owner.")]
+    AlreadyOwner,
 }
