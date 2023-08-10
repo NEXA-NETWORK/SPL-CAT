@@ -95,7 +95,7 @@ describe("cat_sol20", () => {
 
       // Get Program ID
       SPL_CAT_PID = new anchor.web3.PublicKey(anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('./target/deploy/cat_sol20-keypair.json').toString()))).publicKey);
-      
+
       // Generate the program client from IDL.
       program = program = new anchor.Program(
         IDL,
@@ -203,350 +203,348 @@ describe("cat_sol20", () => {
       }
     });
 
-    //   it("Can Shuld Fail mint", async () => {
-    //     try {
-    //       const tokenUserATA = getAssociatedTokenAddressSync(
-    //         tokenMintPDA,
-    //         KEYPAIR.publicKey,
-    //       );
+    it("Can Shuld Fail mint", async () => {
+      try {
+        const tokenUserATA = getAssociatedTokenAddressSync(
+          tokenMintPDA,
+          KEYPAIR.publicKey,
+        );
 
-    //       let transaction = new anchor.web3.Transaction();
-    //       transaction.add(
-    //         createMintToInstruction(
-    //           tokenMintPDA, // Mint
-    //           tokenUserATA, // Destination
-    //           tokenMintPDA, // Signer (Mint Authority)
-    //           1000000,
-    //         )
-    //       );
-    //       const tx = await anchor.web3.sendAndConfirmTransaction(provider.connection, transaction, [KEYPAIR]);
-    //       expect.fail("Minting should have failed, but it succeeded");
-    //     } catch (e: any) {
-    //       expect(e.message).to.include("Signature verification failed");
-    //     }
-    //   });
-    // });
-
-
-    // describe("Ownership Transfers", () => {
-    //   it("Can Transfer Config Ownership", async () => {
-    //     const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
-    //       Buffer.from("config")
-    //     ], SPL_CAT_PID);
-
-    //     const tx = await program.methods.transferOwnership().accounts({
-    //       owner: KEYPAIR.publicKey,
-    //       newOwner: newOwner.publicKey,
-    //       config: configAcc,
-    //     }).signers([KEYPAIR]).rpc();
-
-    //     // You can assert that the transaction was successful.
-    //     assert.ok(tx, "Transaction failed");
-    //     console.log("Your transaction signature", tx);
-    //   });
-
-    //   it("Should Fail to Transfer Ownership to Existing Owner", async () => {
-    //     try {
-    //       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
-    //         Buffer.from("config")
-    //       ], SPL_CAT_PID);
-
-    //       const tx = await program.methods.transferOwnership().accounts({
-    //         owner: newOwner.publicKey,
-    //         newOwner: newOwner.publicKey, // Using the same owner here
-    //         config: configAcc,
-    //       }).signers([newOwner]).rpc();
-
-    //       // If no error was thrown by the previous code, this assertion will fail the test
-    //       expect.fail("Transfer to existing owner should have failed, but it succeeded");
-    //     } catch (e: any) {
-    //       // If an error was thrown, we'll assert that it's the error we expected
-    //       expect(e.message).to.include("AlreadyOwner");
-    //     }
-    //   });
+        let transaction = new anchor.web3.Transaction();
+        transaction.add(
+          createMintToInstruction(
+            tokenMintPDA, // Mint
+            tokenUserATA, // Destination
+            tokenMintPDA, // Signer (Mint Authority)
+            1000000,
+          )
+        );
+        const tx = await anchor.web3.sendAndConfirmTransaction(provider.connection, transaction, [KEYPAIR]);
+        expect.fail("Minting should have failed, but it succeeded");
+      } catch (e: any) {
+        expect(e.message).to.include("Signature verification failed");
+      }
+    });
+  });
 
 
-    //   it("Can Mint Tokens With New Owner", async () => {
-    //     try {
+  describe("Ownership Transfers", () => {
+    it("Can Transfer Config Ownership", async () => {
+      const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+        Buffer.from("config")
+      ], SPL_CAT_PID);
 
-    //       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
-    //         Buffer.from("config")
-    //       ], SPL_CAT_PID);
+      const tx = await program.methods.transferOwnership().accounts({
+        owner: KEYPAIR.publicKey,
+        newOwner: newOwner.publicKey,
+        config: configAcc,
+      }).signers([KEYPAIR]).rpc();
 
-    //       const tokenUserATA = getAssociatedTokenAddressSync(
-    //         tokenMintPDA,
-    //         newOwner.publicKey,
-    //       );
+      // You can assert that the transaction was successful.
+      assert.ok(tx, "Transaction failed");
+      console.log("Your transaction signature", tx);
+    });
 
-    //       let amount = new anchor.BN("100000000000000000");
-    //       const tx = await program.methods.mintTokens(amount).accounts({
-    //         owner: newOwner.publicKey,
-    //         ataAuthority: newOwner.publicKey,
-    //         config: configAcc,
-    //         tokenMint: tokenMintPDA,
-    //         tokenUserAta: tokenUserATA,
-    //         tokenProgram: TOKEN_PROGRAM_ID,
-    //         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    //         systemProgram: anchor.web3.SystemProgram.programId,
-    //       }).signers([newOwner]).rpc({ skipPreflight: true });
-    //       console.log("Your transaction signature", tx);
-    //     } catch (e: any) {
-    //       console.log(e);
-    //     }
-    //   })
-    // });
+    it("Should Fail to Transfer Ownership to Existing Owner", async () => {
+      try {
+        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+          Buffer.from("config")
+        ], SPL_CAT_PID);
 
-    // describe("Registering Chains", () => {
+        const tx = await program.methods.transferOwnership().accounts({
+          owner: newOwner.publicKey,
+          newOwner: newOwner.publicKey, // Using the same owner here
+          config: configAcc,
+        }).signers([newOwner]).rpc();
 
-    //   it("Can Register a chain", async () => {
-    //     try {
-    //       // Registering Ethereum 
-    //       const foreignChainId = Buffer.alloc(2);
-    //       foreignChainId.writeUInt16LE(CHAINS.ethereum);
-
-    //       const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
-    //         Buffer.from("foreign_emitter"),
-    //         foreignChainId,
-    //       ], SPL_CAT_PID)
-
-    //       // Replace this with the Eth Contract
-    //       const ethContractAddress = "0x970e8f18ebfEa0B08810f33a5A40438b9530FBCF";
-    //       let targetEmitterAddress: string | number[] = getEmitterAddressEth(ethContractAddress);
-    //       targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
-
-    //       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
-    //         Buffer.from("config")
-    //       ], SPL_CAT_PID);
-
-    //       const tx = await program.methods.registerEmitter({
-    //         chain: CHAINS.ethereum,
-    //         address: targetEmitterAddress,
-    //       }).accounts({
-    //         owner: newOwner.publicKey,
-    //         config: configAcc,
-    //         foreignEmitter: emitterAcc,
-    //         systemProgram: anchor.web3.SystemProgram.programId
-    //       })
-    //         .signers([newOwner])
-    //         .rpc();
-    //       assert.ok(tx, "Transaction failed to register a chain");
-    //       console.log("Your transaction signature", tx);
-    //       console.log("Your transaction signature", tx);
-    //     } catch (e: any) {
-    //       console.log(e);
-    //       assert.fail(`Unexpected error occurred: ${e.message}`);
-    //     }
-    //   })
-
-    //   it("Should Fail to Register a chain with an invalid chain", async () => {
-    //     try {
-    //       // Registering Solaan
-    //       const foreignChainId = Buffer.alloc(2);
-    //       foreignChainId.writeUInt16LE(CHAINS.solana);
-
-    //       const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
-    //         Buffer.from("foreign_emitter"),
-    //         foreignChainId,
-    //       ], SPL_CAT_PID)
-
-    //       let targetEmitterAddress: string | number[] = getEmitterAddressSolana(SPL_CAT_PID);
-    //       targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
-
-    //       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
-    //         Buffer.from("config")
-    //       ], SPL_CAT_PID);
-
-    //       const tx = await program.methods.registerEmitter({
-    //         chain: CHAINS.solana,
-    //         address: targetEmitterAddress,
-    //       }).accounts({
-    //         owner: newOwner.publicKey,
-    //         config: configAcc,
-    //         foreignEmitter: emitterAcc,
-    //         systemProgram: anchor.web3.SystemProgram.programId
-    //       })
-    //         .signers([newOwner])
-    //         .rpc();
-
-    //       console.log("Your transaction signature", tx);
-    //       expect.fail("Chain registration should have failed, but it succeeded");
-    //     } catch (e: any) {
-    //       expect(e.message).to.include("Invalid Chain ID or Zero Address");
-    //     }
-    //   })
-
-    // });
+        // If no error was thrown by the previous code, this assertion will fail the test
+        expect.fail("Transfer to existing owner should have failed, but it succeeded");
+      } catch (e: any) {
+        // If an error was thrown, we'll assert that it's the error we expected
+        expect(e.message).to.include("AlreadyOwner");
+      }
+    });
 
 
-    // describe("Bridging", () => {
-    //   it("Can Bridge Out", async () => {
-    //     try {
-    //       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
-    //         Buffer.from("config")
-    //       ], SPL_CAT_PID);
+    it("Can Mint Tokens With New Owner", async () => {
+      try {
 
-    //       // Make Sure this acc is initialized and has tokens
-    //       const tokenUserATA = getAssociatedTokenAddressSync(
-    //         tokenMintPDA,
-    //         newOwner.publicKey,
-    //       );
+        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+          Buffer.from("config")
+        ], SPL_CAT_PID);
 
-    //       const foreignChainId = Buffer.alloc(2);
-    //       foreignChainId.writeUInt16LE(CHAINS.ethereum);
+        const tokenUserATA = getAssociatedTokenAddressSync(
+          tokenMintPDA,
+          newOwner.publicKey,
+        );
 
-    //       const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
-    //         Buffer.from("foreign_emitter"),
-    //         foreignChainId,
-    //       ], SPL_CAT_PID)
+        let amount = new anchor.BN("100000000000000000");
+        const tx = await program.methods.mintTokens(amount).accounts({
+          owner: newOwner.publicKey,
+          ataAuthority: newOwner.publicKey,
+          config: configAcc,
+          tokenMint: tokenMintPDA,
+          tokenUserAta: tokenUserATA,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        }).signers([newOwner]).rpc({ skipPreflight: true });
+        console.log("Your transaction signature", tx);
+      } catch (e: any) {
+        console.log(e);
+      }
+    })
+  });
 
-    //       // get sequence
-    //       const SequenceTracker = await getProgramSequenceTracker(provider.connection, SPL_CAT_PID, CORE_BRIDGE_PID)
-    //         .then((tracker) =>
-    //           deriveAddress(
-    //             [
-    //               Buffer.from("sent"),
-    //               (() => {
-    //                 const buf = Buffer.alloc(8);
-    //                 buf.writeBigUInt64LE(tracker.sequence + BigInt(1));
-    //                 return buf;
-    //               })(),
-    //             ],
-    //             SPL_CAT_PID
-    //           )
-    //         );
+  describe("Registering Chains", () => {
 
-    //       const wormholeAccounts = getPostMessageCpiAccounts(
-    //         SPL_CAT_PID,
-    //         CORE_BRIDGE_PID,
-    //         newOwner.publicKey,
-    //         SequenceTracker
-    //       );
+    it("Can Register a chain", async () => {
+      try {
+        // Registering Ethereum 
+        const foreignChainId = Buffer.alloc(2);
+        foreignChainId.writeUInt16LE(CHAINS.ethereum);
 
-    //       // User's Ethereum address
-    //       let userEthAddress = "0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1";
-    //       let recipient = Array.from(tryNativeToUint8Array(userEthAddress, "ethereum"));
+        const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
+          Buffer.from("foreign_emitter"),
+          foreignChainId,
+        ], SPL_CAT_PID)
 
-    //       // Parameters
-    //       let amount = new anchor.BN("10000000000000000");
-    //       let recipientChain = 2;
-    //       const tx = await program.methods.bridgeOut({
-    //         amount,
-    //         recipientChain,
-    //         recipient,
-    //       }).accounts({
-    //         owner: newOwner.publicKey,
-    //         ataAuthority: newOwner.publicKey,
-    //         // Token Stuff
-    //         tokenUserAta: tokenUserATA,
-    //         tokenMint: tokenMintPDA,
-    //         tokenProgram: TOKEN_PROGRAM_ID,
-    //         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    //         // Wormhole Stuff
-    //         wormholeProgram: CORE_BRIDGE_PID,
-    //         foreignEmitter: emitterAcc,
-    //         config: configAcc,
-    //         ...wormholeAccounts,
-    //       }).signers([newOwner]).rpc();
+        // Replace this with the Eth Contract
+        const ethContractAddress = "0x970e8f18ebfEa0B08810f33a5A40438b9530FBCF";
+        let targetEmitterAddress: string | number[] = getEmitterAddressEth(ethContractAddress);
+        targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
 
-    //       console.log("Your transaction signature", tx);
-    //       await new Promise((r) => setTimeout(r, 3000)); // Wait for tx to be confirmed
+        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+          Buffer.from("config")
+        ], SPL_CAT_PID);
 
-    //       const confirmedTx = await provider.connection.getTransaction(tx, { commitment: "confirmed", maxSupportedTransactionVersion: 2 });
+        const tx = await program.methods.registerEmitter({
+          chain: CHAINS.ethereum,
+          address: targetEmitterAddress,
+        }).accounts({
+          owner: newOwner.publicKey,
+          config: configAcc,
+          foreignEmitter: emitterAcc,
+          systemProgram: anchor.web3.SystemProgram.programId
+        })
+          .signers([newOwner])
+          .rpc();
+        assert.ok(tx, "Transaction failed to register a chain");
+        console.log("Your transaction signature", tx);
+        console.log("Your transaction signature", tx);
+      } catch (e: any) {
+        console.log(e);
+        assert.fail(`Unexpected error occurred: ${e.message}`);
+      }
+    })
 
-    //       const seq = parseSequenceFromLogSolana(confirmedTx)
-    //       const emitterAddr = getEmitterAddressSolana(SPL_CAT_PID.toString()); //same as whDerivedEmitter
+    it("Should Fail to Register a chain with an invalid chain", async () => {
+      try {
+        // Registering Solaan
+        const foreignChainId = Buffer.alloc(2);
+        foreignChainId.writeUInt16LE(CHAINS.solana);
 
-    //       console.log("Sequence: ", seq);
-    //       console.log("Emitter Address: ", emitterAddr);
+        const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
+          Buffer.from("foreign_emitter"),
+          foreignChainId,
+        ], SPL_CAT_PID)
 
-    //       await new Promise((r) => setTimeout(r, 3000)); // Wait for guardian to pick up message
-    //       const restAddress = "http://localhost:7071"
+        let targetEmitterAddress: string | number[] = getEmitterAddressSolana(SPL_CAT_PID);
+        targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
 
-    //       console.log(
-    //         "Searching for: ",
-    //         `${restAddress}/v1/signed_vaa/1/${emitterAddr}/${seq}`
-    //       );
+        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+          Buffer.from("config")
+        ], SPL_CAT_PID);
 
-    //       const vaaBytes = await axios.get(
-    //         `${restAddress}/v1/signed_vaa/1/${emitterAddr}/${seq}`
-    //       );
-    //       VAA = vaaBytes.data.vaaBytes;
-    //       console.log("VAA Bytes: ", vaaBytes.data);
+        const tx = await program.methods.registerEmitter({
+          chain: CHAINS.solana,
+          address: targetEmitterAddress,
+        }).accounts({
+          owner: newOwner.publicKey,
+          config: configAcc,
+          foreignEmitter: emitterAcc,
+          systemProgram: anchor.web3.SystemProgram.programId
+        })
+          .signers([newOwner])
+          .rpc();
 
-    //     } catch (e: any) {
-    //       console.log(e);
-    //     }
-    //   });
+        console.log("Your transaction signature", tx);
+        expect.fail("Chain registration should have failed, but it succeeded");
+      } catch (e: any) {
+        expect(e.message).to.include("Invalid Chain ID or Zero Address");
+      }
+    })
 
-    //   it("Bridge In", async () => {
-    //     try {
-    //       await postVaaSolanaWithRetry(
-    //         provider.connection,
-    //         async (tx) => {
-    //           tx.partialSign(newOwner);
-    //           return tx;
-    //         },
-    //         CORE_BRIDGE_PID,
-    //         newOwner.publicKey.toString(),
-    //         Buffer.from(VAA, "base64"),
-    //         10
-    //       );
-
-    //       const parsedVAA = parseVaa(Buffer.from(VAA, 'base64'));
-    //       const payload = getParsedPayload(parsedVAA.payload);
-
-    //       const postedVAAKey = derivePostedVaaKey(CORE_BRIDGE_PID, parsedVAA.hash);
-    //       const recievedKey = PublicKey.findProgramAddressSync(
-    //         [
-    //           Buffer.from("received"),
-    //           (() => {
-    //             const buf = Buffer.alloc(10);
-    //             buf.writeUInt16LE(parsedVAA.emitterChain, 0);
-    //             buf.writeBigInt64LE(parsedVAA.sequence, 2);
-    //             return buf;
-    //           })(),
-    //         ], SPL_CAT_PID)[0];
+  });
 
 
-    //       const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
-    //         Buffer.from("config")
-    //       ], SPL_CAT_PID);
+  describe("Bridging", () => {
+    it("Can Bridge Out", async () => {
+      try {
+        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+          Buffer.from("config")
+        ], SPL_CAT_PID);
 
-    //       const tokenUserATA = getAssociatedTokenAddressSync(
-    //         tokenMintPDA,
-    //         payload.toAddress,
-    //       );
+        // Make Sure this acc is initialized and has tokens
+        const tokenUserATA = getAssociatedTokenAddressSync(
+          tokenMintPDA,
+          newOwner.publicKey,
+        );
 
-    //       const foreignChainId = Buffer.alloc(2);
-    //       foreignChainId.writeUInt16LE(payload.tokenChain);
+        const foreignChainId = Buffer.alloc(2);
+        foreignChainId.writeUInt16LE(CHAINS.ethereum);
 
-    //       const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
-    //         Buffer.from("foreign_emitter"),
-    //         foreignChainId,
-    //       ], SPL_CAT_PID)
+        const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
+          Buffer.from("foreign_emitter"),
+          foreignChainId,
+        ], SPL_CAT_PID)
 
-    //       const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
-    //         owner: newOwner.publicKey,
-    //         ataAuthority: payload.toAddress,
-    //         tokenUserAta: tokenUserATA,
-    //         tokenMint: tokenMintPDA,
-    //         tokenProgram: TOKEN_PROGRAM_ID,
-    //         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    //         wormholeProgram: CORE_BRIDGE_PID,
-    //         foreignEmitter: emitterAcc,
-    //         posted: postedVAAKey,
-    //         received: recievedKey,
-    //         config: configAcc,
-    //         systemProgram: anchor.web3.SystemProgram.programId,
-    //       }).signers([newOwner]).rpc({ skipPreflight: true });
+        // get sequence
+        const SequenceTracker = await getProgramSequenceTracker(provider.connection, SPL_CAT_PID, CORE_BRIDGE_PID)
+          .then((tracker) =>
+            deriveAddress(
+              [
+                Buffer.from("sent"),
+                (() => {
+                  const buf = Buffer.alloc(8);
+                  buf.writeBigUInt64LE(tracker.sequence + BigInt(1));
+                  return buf;
+                })(),
+              ],
+              SPL_CAT_PID
+            )
+          );
 
-    //       console.log("Your transaction signature", tx);
-    //     } catch (e: any) {
-    //       console.log(e);
-    //     }
-    //   });
+        const wormholeAccounts = getPostMessageCpiAccounts(
+          SPL_CAT_PID,
+          CORE_BRIDGE_PID,
+          newOwner.publicKey,
+          SequenceTracker
+        );
 
-    // });
+        // User's Ethereum address
+        let userEthAddress = "0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1";
+        let recipient = Array.from(tryNativeToUint8Array(userEthAddress, "ethereum"));
+
+        // Parameters
+        let amount = new anchor.BN("10000000000000000");
+        let recipientChain = 2;
+        const tx = await program.methods.bridgeOut({
+          amount,
+          recipientChain,
+          recipient,
+        }).accounts({
+          owner: newOwner.publicKey,
+          ataAuthority: newOwner.publicKey,
+          // Token Stuff
+          tokenUserAta: tokenUserATA,
+          tokenMint: tokenMintPDA,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          // Wormhole Stuff
+          wormholeProgram: CORE_BRIDGE_PID,
+          foreignEmitter: emitterAcc,
+          config: configAcc,
+          ...wormholeAccounts,
+        }).signers([newOwner]).rpc();
+
+        console.log("Your transaction signature", tx);
+        await new Promise((r) => setTimeout(r, 3000)); // Wait for tx to be confirmed
+
+        const confirmedTx = await provider.connection.getTransaction(tx, { commitment: "confirmed", maxSupportedTransactionVersion: 2 });
+
+        const seq = parseSequenceFromLogSolana(confirmedTx)
+        const emitterAddr = getEmitterAddressSolana(SPL_CAT_PID.toString()); //same as whDerivedEmitter
+
+        console.log("Sequence: ", seq);
+        console.log("Emitter Address: ", emitterAddr);
+
+        await new Promise((r) => setTimeout(r, 3000)); // Wait for guardian to pick up message
+        const restAddress = "http://localhost:7071"
+
+        console.log(
+          "Searching for: ",
+          `${restAddress}/v1/signed_vaa/1/${emitterAddr}/${seq}`
+        );
+
+        const vaaBytes = await axios.get(
+          `${restAddress}/v1/signed_vaa/1/${emitterAddr}/${seq}`
+        );
+        VAA = vaaBytes.data.vaaBytes;
+        console.log("VAA Bytes: ", vaaBytes.data);
+
+      } catch (e: any) {
+        console.log(e);
+      }
+    });
+
+    it("Bridge In", async () => {
+      try {
+        await postVaaSolanaWithRetry(
+          provider.connection,
+          async (tx) => {
+            tx.partialSign(newOwner);
+            return tx;
+          },
+          CORE_BRIDGE_PID,
+          newOwner.publicKey.toString(),
+          Buffer.from(VAA, "base64"),
+          10
+        );
+
+        const parsedVAA = parseVaa(Buffer.from(VAA, 'base64'));
+        const payload = getParsedPayload(parsedVAA.payload);
+
+        const postedVAAKey = derivePostedVaaKey(CORE_BRIDGE_PID, parsedVAA.hash);
+        const recievedKey = PublicKey.findProgramAddressSync(
+          [
+            Buffer.from("received"),
+            (() => {
+              const buf = Buffer.alloc(10);
+              buf.writeUInt16LE(parsedVAA.emitterChain, 0);
+              buf.writeBigInt64LE(parsedVAA.sequence, 2);
+              return buf;
+            })(),
+          ], SPL_CAT_PID)[0];
+
+
+        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+          Buffer.from("config")
+        ], SPL_CAT_PID);
+
+        const tokenUserATA = getAssociatedTokenAddressSync(
+          tokenMintPDA,
+          payload.toAddress,
+        );
+
+        const foreignChainId = Buffer.alloc(2);
+        foreignChainId.writeUInt16LE(payload.tokenChain);
+
+        const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
+          Buffer.from("foreign_emitter"),
+          foreignChainId,
+        ], SPL_CAT_PID)
+
+        const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
+          owner: newOwner.publicKey,
+          ataAuthority: payload.toAddress,
+          tokenUserAta: tokenUserATA,
+          tokenMint: tokenMintPDA,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          wormholeProgram: CORE_BRIDGE_PID,
+          foreignEmitter: emitterAcc,
+          posted: postedVAAKey,
+          received: recievedKey,
+          config: configAcc,
+          systemProgram: anchor.web3.SystemProgram.programId,
+        }).signers([newOwner]).rpc({ skipPreflight: true });
+
+        console.log("Your transaction signature", tx);
+      } catch (e: any) {
+        console.log(e);
+      }
+    });
 
   });
 });
