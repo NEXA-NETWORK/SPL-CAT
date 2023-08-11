@@ -53,7 +53,7 @@ pub enum ErrorFactory {
 
     #[msg("InvalidAmount: The amount is exceeding the maximum amount allowed to be minted.")]
     /// The amount is too large and is exceeding the maximum amount allowed to be minted.
-    IvalidMintAmount,
+    InvalidMintAmount,
 
     #[msg("MintToFailed: The mint to instruction failed.")]
     MintToFailed,
@@ -62,5 +62,8 @@ pub enum ErrorFactory {
     TokenBurnFailed,
 
     #[msg("InvalidDestinationChain: The Destination Chain ID is not Solana. Are you sure this VAA is meant for Solana?")]
-    InvalidDestinationChain
+    InvalidDestinationChain,
+
+    #[msg("AlreadyOwner: The account is already the owner.")]
+    AlreadyOwner,
 }

@@ -113,7 +113,7 @@ impl BridgeIn<'_> {
                 payload.to_chain == wormhole::CHAIN_ID_SOLANA,
                 ErrorFactory::InvalidDestinationChain
             );
-
+            
             let ata_address = associated_token::get_associated_token_address(
                 &Pubkey::from(payload.to_address),
                 &ctx.accounts.token_mint.key(),
@@ -138,26 +138,23 @@ impl BridgeIn<'_> {
                 to: ctx.accounts.token_user_ata.to_account_info(),
                 authority: ctx.accounts.owner.to_account_info(),
             };
-            let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+            let bump = *ctx
+                .bumps
+                .get("token_mint")
+                .ok_or(ErrorFactory::BumpNotFound)?;
 
-            match mint_to(cpi_ctx, normalized_amount) {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(e);
-                }
-            }
+            let cpi_signer_seeds = &[
+                b"spl_cat_token".as_ref(),
+                &[bump],
+            ];
+            let cpi_signer = &[&cpi_signer_seeds[..]];
 
-            // Serialize the payload to save it
-            let mut serialized_payload: Vec<u8> = Vec::new();
-            CATSOLStructs::CrossChainPayload {
-                payload: payload.clone(),
-            }
-            .serialize(&mut serialized_payload)?;
+            let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
+
+            mint_to(cpi_ctx, normalized_amount)?;
 
             //Save batch ID, keccak256 hash and message payload.
             let received = &mut ctx.accounts.received;
-            received.batch_id = posted_message.batch_id();
-            received.payload = serialized_payload;
             received.wormhole_message_hash = vaa_hash;
 
             // Done

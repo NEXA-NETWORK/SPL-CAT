@@ -54,7 +54,7 @@ impl MintTokens<'_> {
 
         // Check if the amount doesn't exceed the max supply
         if amount + config.minted_supply >= config.max_supply {
-            return Err(ErrorFactory::IvalidMintAmount.into());
+            return Err(ErrorFactory::InvalidMintAmount.into());
         }
 
         // Mint the tokens
@@ -62,16 +62,22 @@ impl MintTokens<'_> {
         let cpi_accounts = MintTo {
             mint: ctx.accounts.token_mint.to_account_info(),
             to: ctx.accounts.token_user_ata.to_account_info(),
-            authority: ctx.accounts.owner.to_account_info(),
+            authority: ctx.accounts.token_mint.to_account_info(),
         };
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        let bump = *ctx
+            .bumps
+            .get("token_mint")
+            .ok_or(ErrorFactory::BumpNotFound)?;
 
-        match mint_to(cpi_ctx, amount) {
-            Ok(_) => {}
-            Err(e) => {
-                return Err(e);
-            }
-        }
+        let cpi_signer_seeds = &[
+            b"spl_cat_token".as_ref(),
+            &[bump],
+        ];
+        let cpi_signer = &[&cpi_signer_seeds[..]];
+
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
+
+        mint_to(cpi_ctx, amount)?;
         // Update the Minted Supply
         config.minted_supply += amount;
 

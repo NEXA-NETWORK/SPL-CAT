@@ -51,4 +51,3 @@ impl Config {
     /// AKA `b"config"`.
     pub const SEED_PREFIX: &'static [u8; 6] = b"config";
 }
-

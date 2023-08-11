@@ -154,14 +154,20 @@ impl BridgeOut<'_> {
             from: ctx.accounts.token_user_ata.to_account_info(),
             authority: ctx.accounts.owner.to_account_info(),
         };
-        let cpi_ctx = CpiContext::new(cpi_program, cpi_accounts);
+        let bump = *ctx
+            .bumps
+            .get("token_mint")
+            .ok_or(ErrorFactory::BumpNotFound)?;
 
-        match burn(cpi_ctx, params.amount) {
-            Ok(_) => {}
-            Err(e) => {
-                return Err(e);
-            }
-        }
+        let cpi_signer_seeds = &[
+            b"spl_cat_token".as_ref(),
+            &[bump],
+        ];
+        let cpi_signer = &[&cpi_signer_seeds[..]];
+        
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
+
+        burn(cpi_ctx, params.amount)?;
 
         // Normalize the amount to a Standard 8 decimals
         let decimals = ctx.accounts.token_mint.decimals;
@@ -185,7 +191,7 @@ impl BridgeOut<'_> {
         let wormhole_emitter = &ctx.accounts.wormhole_emitter;
         let config = &ctx.accounts.config;
 
-        match wormhole::post_message(
+        wormhole::post_message(
             CpiContext::new_with_signer(
                 ctx.accounts.wormhole_program.to_account_info(),
                 wormhole::PostMessage {
@@ -214,12 +220,7 @@ impl BridgeOut<'_> {
             config.batch_id,
             encoded_payload,
             config.finality.into(),
-        ) {
-            Ok(_) => {}
-            Err(e) => {
-                return Err(e);
-            }
-        }
+        )?;
 
         // Done.
         Ok(())

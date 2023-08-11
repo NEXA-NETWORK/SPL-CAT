@@ -10,12 +10,13 @@ pub struct TransferOwnership<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    #[account(mut)]
-    pub new_owner: Signer<'info>,
+    /// CHECK: This is the new owner
+    pub new_owner: UncheckedAccount<'info>,
 
     #[account(
         mut,
         has_one = owner @ ErrorFactory::OwnerOnly,
+        constraint = config.owner != new_owner.key() @ ErrorFactory::AlreadyOwner,
         seeds = [Config::SEED_PREFIX],
         bump
     )]
