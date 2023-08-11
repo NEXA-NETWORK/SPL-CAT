@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { assert, expect } from "chai";
 import { Program } from "@coral-xyz/anchor";
-import { CatSol20 } from "../target/types/cat_sol20";
+import { CatSol20 } from "../../target/types/cat_sol20";
 import { TOKEN_METADATA_PROGRAM_ID } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import {
