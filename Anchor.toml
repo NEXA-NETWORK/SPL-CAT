@@ -3,10 +3,7 @@ seeds = false
 skip-lint = false
 
 [programs.localnet]
-cat_sol20 = "9oMo3tUy3gBYi9FHEDF8YFQBryiUXLqq8wi4Ztsd186Y"
-cat_sol20_proxy = "CnKFjQSLcPMVhmy8GzcetJE7dyDXqhsNaPHZzPtQ87oD"
-test_token = "6sFFctSuHcmuxVnFtpeeGq4b5udhhvyqah2K3yDuq3Q1"
-
+cat_sol20 = "3MyCiYPzAwJCgnPKiAYSb1TaVLZUYhe2YnHbBHw3F9V5"
 
 [registry]
 url = "https://api.apr.dev"
@@ -14,4 +11,3 @@ url = "https://api.apr.dev"
 [provider]
 cluster = "Localnet"
 wallet = "/home/ace/.config/solana/id.json"
-
