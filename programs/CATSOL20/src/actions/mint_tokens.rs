@@ -54,7 +54,7 @@ impl MintTokens<'_> {
 
         // Check if the amount doesn't exceed the max supply
         if amount + config.minted_supply >= config.max_supply {
-            return Err(ErrorFactory::IvalidMintAmount.into());
+            return Err(ErrorFactory::InvalidMintAmount.into());
         }
 
         // Mint the tokens
@@ -77,12 +77,7 @@ impl MintTokens<'_> {
 
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
 
-        match mint_to(cpi_ctx, amount) {
-            Ok(_) => {}
-            Err(e) => {
-                return Err(e);
-            }
-        }
+        mint_to(cpi_ctx, amount)?;
         // Update the Minted Supply
         config.minted_supply += amount;
 

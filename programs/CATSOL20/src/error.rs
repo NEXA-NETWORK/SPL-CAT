@@ -53,7 +53,7 @@ pub enum ErrorFactory {
 
     #[msg("InvalidAmount: The amount is exceeding the maximum amount allowed to be minted.")]
     /// The amount is too large and is exceeding the maximum amount allowed to be minted.
-    IvalidMintAmount,
+    InvalidMintAmount,
 
     #[msg("MintToFailed: The mint to instruction failed.")]
     MintToFailed,

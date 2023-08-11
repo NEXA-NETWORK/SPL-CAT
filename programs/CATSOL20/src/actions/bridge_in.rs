@@ -151,24 +151,10 @@ impl BridgeIn<'_> {
 
             let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
 
-            match mint_to(cpi_ctx, normalized_amount) {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(e);
-                }
-            }
-
-            // Serialize the payload to save it
-            let mut serialized_payload: Vec<u8> = Vec::new();
-            CATSOLStructs::CrossChainPayload {
-                payload: payload.clone(),
-            }
-            .serialize(&mut serialized_payload)?;
+            mint_to(cpi_ctx, normalized_amount)?;
 
             //Save batch ID, keccak256 hash and message payload.
             let received = &mut ctx.accounts.received;
-            received.batch_id = posted_message.batch_id();
-            received.payload = serialized_payload;
             received.wormhole_message_hash = vaa_hash;
 
             // Done

@@ -181,7 +181,7 @@ impl Initialize<'_> {
             ];
 
 
-            match invoke_signed(
+            invoke_signed(
                 &create_metadata_account_ix,
                 &[
                     ctx.accounts.owner.to_account_info(),
@@ -191,13 +191,7 @@ impl Initialize<'_> {
                     ctx.accounts.system_program.to_account_info(),
                 ],
                 &[metadata_signer_seeds],
-            ) {
-                Ok(_) => {}
-                Err(e) => {
-                    msg!("Error Creating Metadata: {:?}", e);
-                    return Err(e.into());
-                }
-            }
+            )?;
         }
 
         ctx.accounts.wormhole_emitter.bump = *ctx.bumps.get("wormhole_emitter").ok_or(ErrorFactory::BumpNotFound)?;
@@ -207,19 +201,14 @@ impl Initialize<'_> {
             // Pay the Fee
             let fee = ctx.accounts.wormhole_bridge.fee();
             if fee > 0 {
-                match solana_program::program::invoke(
+                solana_program::program::invoke(
                     &solana_program::system_instruction::transfer(
                         &ctx.accounts.owner.key(),
                         &ctx.accounts.wormhole_fee_collector.key(),
                         fee,
                     ),
                     &ctx.accounts.to_account_infos(),
-                ) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        return Err(e.into());
-                    }
-                }
+                )?;
             }
             let wormhole_emitter = &ctx.accounts.wormhole_emitter;
             let config = &ctx.accounts.config;
@@ -232,7 +221,7 @@ impl Initialize<'_> {
                 &mut payload,
             )?;
 
-            match wormhole::post_message(
+            wormhole::post_message(
                 CpiContext::new_with_signer(
                     ctx.accounts.wormhole_program.to_account_info(),
                     wormhole::PostMessage {
@@ -261,12 +250,7 @@ impl Initialize<'_> {
                 config.batch_id,
                 payload,
                 config.finality.into(),
-            ) {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(e);
-                }
-            }
+            )?;
         }
 
         Ok(())

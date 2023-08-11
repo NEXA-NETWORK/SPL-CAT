@@ -167,12 +167,7 @@ impl BridgeOut<'_> {
         
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
 
-        match burn(cpi_ctx, params.amount) {
-            Ok(_) => {}
-            Err(e) => {
-                return Err(e);
-            }
-        }
+        burn(cpi_ctx, params.amount)?;
 
         // Normalize the amount to a Standard 8 decimals
         let decimals = ctx.accounts.token_mint.decimals;
@@ -196,7 +191,7 @@ impl BridgeOut<'_> {
         let wormhole_emitter = &ctx.accounts.wormhole_emitter;
         let config = &ctx.accounts.config;
 
-        match wormhole::post_message(
+        wormhole::post_message(
             CpiContext::new_with_signer(
                 ctx.accounts.wormhole_program.to_account_info(),
                 wormhole::PostMessage {
@@ -225,12 +220,7 @@ impl BridgeOut<'_> {
             config.batch_id,
             encoded_payload,
             config.finality.into(),
-        ) {
-            Ok(_) => {}
-            Err(e) => {
-                return Err(e);
-            }
-        }
+        )?;
 
         // Done.
         Ok(())
