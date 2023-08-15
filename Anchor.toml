@@ -1,9 +1,8 @@
 [features]
 seeds = false
 skip-lint = false
-
 [programs.localnet]
-cat_sol20 = "3MyCiYPzAwJCgnPKiAYSb1TaVLZUYhe2YnHbBHw3F9V5"
+cat_sol20 = "65dnUJXdYiKuMUBYyMTowK5g8MzNhABeeTzCtMg1RodQ"
 
 [registry]
 url = "https://api.apr.dev"
