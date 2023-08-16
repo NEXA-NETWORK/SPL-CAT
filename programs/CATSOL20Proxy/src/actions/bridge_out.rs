@@ -34,21 +34,22 @@ pub struct BridgeOut<'info> {
     #[account(mut)]
     pub token_user_ata: Box<Account<'info, TokenAccount>>,
 
-    /// CHECK: Token ATA PDA. The PDA of the ATA that will hold the locked tokens. It will act
-    /// as the authority as well.
-    #[account(
-        mut,
-        seeds = [SEED_PREFIX_MINT, token_user_ata.key().as_ref()],
-        bump,
-      )]
-    pub token_ata_pda: AccountInfo<'info>,
+    // /// CHECK: Token ATA PDA. The PDA of the ATA that will hold the locked tokens. It will act
+    // /// as the authority as well.
+    // #[account(
+    //     mut,
+    //     seeds = [SEED_PREFIX_LOCK, token_mint.key().as_ref()],
+    //     bump,
+    //   )]
+    // pub token_ata_pda: AccountInfo<'info>,
 
     // Token Mint ATA. Its an Associated Token Account owned by the Program that will hold the locked tokens
     #[account(
-        init_if_needed,
-        payer = owner,
-        associated_token::mint = token_mint,
-        associated_token::authority = token_ata_pda,
+        mut,
+        seeds = [SEED_PREFIX_LOCK, token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = token_mint_ata,
     )]
     pub token_mint_ata: Account<'info, TokenAccount>,
 
@@ -157,15 +158,16 @@ impl BridgeOut<'_> {
         let cpi_accounts = Transfer {
             from: ctx.accounts.token_user_ata.to_account_info(),
             to: ctx.accounts.token_mint_ata.to_account_info(),
-            authority: ctx.accounts.token_ata_pda.to_account_info(),
+            authority: ctx.accounts.token_mint_ata.to_account_info(),
         };
         let bump = *ctx
             .bumps
-            .get("token_ata_pda")
+            .get("token_mint_ata")
             .ok_or(ErrorFactory::BumpNotFound)?;
+
         let cpi_signer_seeds = &[
             b"cat_sol_proxy".as_ref(),
-            &ctx.accounts.token_user_ata.key().to_bytes(),
+            &ctx.accounts.token_mint.key().to_bytes(),
             &[bump],
         ];
         let cpi_signer = &[&cpi_signer_seeds[..]];

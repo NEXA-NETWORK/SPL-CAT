@@ -1,6 +1,9 @@
 use anchor_lang::prelude::*;
 use wormhole_anchor_sdk::wormhole;
-use anchor_spl::token::{Mint, Token};
+use anchor_spl::{
+    associated_token::AssociatedToken,
+    token::{Mint, Token, TokenAccount},
+};
 
 use crate::{
     constants::*,
@@ -28,7 +31,20 @@ pub struct Initialize<'info> {
 
     #[account(mut)]
     pub token_mint: Box<Account<'info, Mint>>,
+
+    #[account(
+        init,
+        seeds = [SEED_PREFIX_LOCK, token_mint.key().as_ref()],
+        bump,
+        payer = owner,
+        token::mint = token_mint,
+        token::authority = token_mint_ata,
+    )]
+    pub token_mint_ata: Account<'info, TokenAccount>,
+
     pub token_program: Program<'info, Token>,
+    // Associated Token Program
+    pub associated_token_program: Program<'info, AssociatedToken>,
     pub wormhole_program: Program<'info, wormhole::program::Wormhole>,
 
     #[account(
