@@ -110,6 +110,8 @@ describe("cat_sol20_proxy", () => {
         Buffer.from("config")
       ], SPL_CAT_PROXY_PID);
 
+      const tokenMintATA = PublicKey.findProgramAddressSync([LOCK_PDA_SEED, testTokenMintPDA.toBuffer()], SPL_CAT_PROXY_PID)[0];
+
       // Initial Sequence is 1
       const initial_sequence = Buffer.alloc(8);
       initial_sequence.writeBigUint64LE(BigInt(1));
@@ -125,6 +127,8 @@ describe("cat_sol20_proxy", () => {
         owner: KEYPAIR.publicKey,
         config: configAcc,
         tokenMint: testTokenMintPDA,
+        tokenMintAta: tokenMintATA,
+        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
         tokenProgram: TOKEN_PROGRAM_ID,
         wormholeProgram: CORE_BRIDGE_PID,
         wormholeBridge: wormhole.bridge,
@@ -199,14 +203,8 @@ describe("cat_sol20_proxy", () => {
         Buffer.from("config")
       ], SPL_CAT_PROXY_PID);
 
-      // PDA for Locking the Tokens
-      const tokenATAPDA = PublicKey.findProgramAddressSync([LOCK_PDA_SEED, testTokenUserATA.toBuffer()], SPL_CAT_PROXY_PID)[0];
-      // ATA for Locking the Tokens
-      const tokenMintATA = getAssociatedTokenAddressSync(
-        testTokenMintPDA,
-        tokenATAPDA,
-        true
-      );
+
+      const tokenMintATA = PublicKey.findProgramAddressSync([LOCK_PDA_SEED, testTokenMintPDA.toBuffer()], SPL_CAT_PROXY_PID)[0];
 
       // get sequence
       const SequenceTracker = await getProgramSequenceTracker(provider.connection, SPL_CAT_PROXY_PID, CORE_BRIDGE_PID)
@@ -245,7 +243,7 @@ describe("cat_sol20_proxy", () => {
       transaction.add(
         createApproveInstruction(
           testTokenUserATA,
-          tokenATAPDA,
+          tokenMintATA,
           TEST_KEYPAIR.publicKey,
           BigInt(amount.toString())
         )
@@ -264,7 +262,6 @@ describe("cat_sol20_proxy", () => {
         // Token Stuff
         tokenMint: testTokenMintPDA,
         tokenUserAta: testTokenUserATA,
-        tokenAtaPda: tokenATAPDA,
         tokenMintAta: tokenMintATA,
         tokenProgram: TOKEN_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -307,6 +304,7 @@ describe("cat_sol20_proxy", () => {
 
   it("Bridge In", async () => {
     try {
+      VAA = "AQAAAAABAECZ6MDgoBwpLZPKJJ5FodUl4lklLLsfFiyNZ/o7EJrnVOhdf1go2Fb5Ofy97mmXdl6D75bIkS6J9Lma8z8ZiJ8BZNxm1wAAAAAAAgAAAAAAAAAAAAAAANtW8uk2ng170ZEJkSWj9sNw+O0VAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA6NSlEAAAAAAAAAAAAAAAAADbVvLpNp4Ne9GRCZElo/bDcPjtFQACLloCFW7T073SLX1yc99kIntAFbuuomMqikD7v7AdEHQAARI="
       await postVaaSolanaWithRetry(
         provider.connection,
         async (tx) => {
@@ -321,7 +319,6 @@ describe("cat_sol20_proxy", () => {
 
       const parsedVAA = parseVaa(Buffer.from(VAA, 'base64'));
       const payload = getParsedPayload(parsedVAA.payload);
-      console.log("Payload: ", payload);
 
       const postedVAAKey = derivePostedVaaKey(CORE_BRIDGE_PID, parsedVAA.hash);
       const recievedKey = PublicKey.findProgramAddressSync(
@@ -345,14 +342,8 @@ describe("cat_sol20_proxy", () => {
         payload.toAddress,
       );
 
-      // PDA for Locking the Tokens
-      const tokenATAPDA = PublicKey.findProgramAddressSync([LOCK_PDA_SEED, testTokenUserATA.toBuffer()], SPL_CAT_PROXY_PID)[0];
-      // ATA that holds the locked Tokens
-      const tokenMintATA = getAssociatedTokenAddressSync(
-        testTokenMintPDA,
-        tokenATAPDA,
-        true
-      );
+
+      const tokenMintATA = PublicKey.findProgramAddressSync([LOCK_PDA_SEED, testTokenMintPDA.toBuffer()], SPL_CAT_PROXY_PID)[0];
 
       const foreignChainId = Buffer.alloc(2);
       foreignChainId.writeUInt16LE(payload.tokenChain);
@@ -365,7 +356,6 @@ describe("cat_sol20_proxy", () => {
       const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
         owner: KEYPAIR.publicKey,
         tokenUserAta: tokenUserATA,
-        tokenAtaPda: tokenATAPDA,
         tokenMintAta: tokenMintATA,
         tokenMint: testTokenMintPDA,
         tokenProgram: TOKEN_PROGRAM_ID,

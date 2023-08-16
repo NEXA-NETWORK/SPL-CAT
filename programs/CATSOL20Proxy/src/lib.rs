@@ -18,7 +18,7 @@ pub use constants::*;
 pub mod utils;
 pub use utils::*;
 
-declare_id!("FP4euMVmwaV4jFiLJq1UAG4USq6nDd4nKAk49TBpKSpf");
+declare_id!("4dhPGRoFDPFWPVue1xReyazzd1r1k93qyn7qLsNNNeuf");
 
 #[program]
 pub mod cat_sol20_proxy {
