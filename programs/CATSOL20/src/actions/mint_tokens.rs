@@ -15,20 +15,20 @@ pub struct MintTokens<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
+    /// CHECK: The user account we're initializing for. Required for creating PDAs
+    #[account(mut)]
+    pub user: AccountInfo<'info>,
+
     #[account(
         has_one = owner @ ErrorFactory::OwnerOnly,
-        seeds = [Config::SEED_PREFIX],
+        seeds = [Config::SEED_PREFIX, user.key().as_ref()],
         bump
     )]
     pub config: Box<Account<'info, Config>>,
 
-    /// CHECK: This is the authority of the ATA
-    #[account(mut)]
-    pub ata_authority: AccountInfo<'info>,
-
     #[account(
         mut, 
-        seeds = [SEED_PREFIX_MINT],
+        seeds = [SEED_PREFIX_MINT, user.key().as_ref()],
         bump
     )]
     pub token_mint: Account<'info, Mint>,
@@ -37,7 +37,7 @@ pub struct MintTokens<'info> {
         init_if_needed,
         payer = owner,
         associated_token::mint = token_mint,
-        associated_token::authority = ata_authority,
+        associated_token::authority = user,
     )]
     pub token_user_ata: Account<'info, TokenAccount>,
 
@@ -51,6 +51,7 @@ impl MintTokens<'_> {
 
     pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
         let config = &mut ctx.accounts.config;
+        let user = &ctx.accounts.user;
 
         // Check if the amount doesn't exceed the max supply
         if amount + config.minted_supply >= config.max_supply {
@@ -68,9 +69,10 @@ impl MintTokens<'_> {
             .bumps
             .get("token_mint")
             .ok_or(ErrorFactory::BumpNotFound)?;
-
+        
         let cpi_signer_seeds = &[
             b"spl_cat_token".as_ref(),
+            user.key.as_ref(),
             &[bump],
         ];
         let cpi_signer = &[&cpi_signer_seeds[..]];

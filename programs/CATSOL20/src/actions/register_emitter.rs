@@ -17,9 +17,12 @@ pub struct RegisterEmitter<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
+    /// CHECK: This is the new owner
+    pub user: AccountInfo<'info>,
+
     #[account(
         has_one = owner @ ErrorFactory::OwnerOnly,
-        seeds = [Config::SEED_PREFIX],
+        seeds = [Config::SEED_PREFIX, user.key().as_ref()],
         bump
     )]
     pub config: Box<Account<'info, Config>>,
@@ -29,6 +32,7 @@ pub struct RegisterEmitter<'info> {
         payer = owner,
         seeds = [
             ForeignEmitter::SEED_PREFIX,
+            config.key().as_ref(),
             &params.chain.to_le_bytes()[..]
         ],
         bump,

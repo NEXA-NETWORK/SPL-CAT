@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-#[derive(Default, AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+#[derive(Default,Debug, AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
 /// Wormhole program related addresses.
 pub struct WormholeAddresses {
     /// [BridgeData](wormhole_anchor_sdk::wormhole::BridgeData) address.

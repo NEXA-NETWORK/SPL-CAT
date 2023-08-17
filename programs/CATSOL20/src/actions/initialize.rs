@@ -31,10 +31,13 @@ pub struct Initialize<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
+    /// CHECK: The user account we're initializing for. Required for creating PDAs
+    pub user: AccountInfo<'info>,
+
     #[account(
         init,
         payer = owner,
-        seeds = [Config::SEED_PREFIX],
+        seeds = [Config::SEED_PREFIX, user.key().as_ref()],
         bump,
         space = Config::MAXIMUM_SIZE,
 
@@ -43,7 +46,7 @@ pub struct Initialize<'info> {
 
     #[account(
         init, 
-        seeds = [SEED_PREFIX_MINT],
+        seeds = [SEED_PREFIX_MINT, user.key().as_ref()],
         bump,
         payer = owner,
         mint::decimals = params.decimals,
@@ -87,7 +90,7 @@ pub struct Initialize<'info> {
     #[account(
         init,
         payer = owner,
-        seeds = [WormholeEmitter::SEED_PREFIX],
+        seeds = [WormholeEmitter::SEED_PREFIX, token_mint.key().as_ref()],
         bump,
         space = WormholeEmitter::MAXIMUM_SIZE
     )]
@@ -109,11 +112,12 @@ pub struct Initialize<'info> {
         mut,
         seeds = [
             SEED_PREFIX_SENT,
+            wormhole_emitter.key().as_ref(),
             &wormhole::INITIAL_SEQUENCE.to_le_bytes()[..]
         ],
         bump,
     )]
-    ///CHECK:
+    ///CHECK: 
     pub wormhole_message: UncheckedAccount<'info>,
 
     pub clock: Sysvar<'info, Clock>,
@@ -135,6 +139,7 @@ impl Initialize<'_> {
             wormhole.bridge = ctx.accounts.wormhole_bridge.key();
             wormhole.fee_collector = ctx.accounts.wormhole_fee_collector.key();
             wormhole.sequence = ctx.accounts.wormhole_sequence.key();
+            msg!("Wormhole: {:?}", wormhole);
         }
 
         // Set default values for posting Wormhole messages.
@@ -175,8 +180,11 @@ impl Initialize<'_> {
             .get("token_mint")
             .ok_or(ErrorFactory::BumpNotFound)?;
 
+            let user_key = &ctx.accounts.user;
+
             let metadata_signer_seeds = &[
                 b"spl_cat_token".as_ref(),
+                user_key.key.as_ref(),
                 &[bump],
             ];
 
@@ -211,6 +219,7 @@ impl Initialize<'_> {
                 )?;
             }
             let wormhole_emitter = &ctx.accounts.wormhole_emitter;
+            let token_mint = &ctx.accounts.token_mint;
             let config = &ctx.accounts.config;
 
             let mut payload: Vec<u8> = Vec::new();
@@ -238,13 +247,14 @@ impl Initialize<'_> {
                     &[
                         &[
                             SEED_PREFIX_SENT,
+                            wormhole_emitter.key().as_ref(),
                             &wormhole::INITIAL_SEQUENCE.to_le_bytes()[..],
                             &[*ctx
                                 .bumps
                                 .get("wormhole_message")
                                 .ok_or(ErrorFactory::BumpNotFound)?],
                         ],
-                        &[wormhole::SEED_PREFIX_EMITTER, &[wormhole_emitter.bump]],
+                        &[wormhole::SEED_PREFIX_EMITTER, token_mint.key().as_ref(), &[wormhole_emitter.bump]],
                     ],
                 ),
                 config.batch_id,
