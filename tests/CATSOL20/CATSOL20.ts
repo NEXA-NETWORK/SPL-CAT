@@ -435,8 +435,8 @@ describe("cat_sol20", () => {
         const sequenceNumber = deserializeSequenceTracker(sequenceAccount.data);
 
         const wormholeAccounts = getPostMessageAccounts(
-          SPL_CAT_PID,
           CORE_BRIDGE_PID,
+          SPL_CAT_PID,
           tokenMintPDA,
           Number(sequenceNumber) + 1,
         );
@@ -472,17 +472,17 @@ describe("cat_sol20", () => {
           systemProgram: wormholeAccounts.systemProgram
         }).signers([USER_KEYPAIR])
 
-        const tx = await method.transaction();
+        // const tx = await method.transaction();
 
-        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
-        tx.feePayer = NEXA_KEYPAIR.publicKey;
-        const message = tx.compileMessage();
+        // tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
+        // tx.feePayer = NEXA_KEYPAIR.publicKey;
+        // const message = tx.compileMessage();
 
-        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
-        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
+        // const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
+        // console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
 
-        const simulate = await provider.connection.simulateTransaction(tx);
-        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
+        // const simulate = await provider.connection.simulateTransaction(tx);
+        // console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
 
         const rpc = await method.rpc();
         console.log("Your transaction signature", rpc);
@@ -492,7 +492,7 @@ describe("cat_sol20", () => {
         const confirmedTx = await provider.connection.getTransaction(rpc, { commitment: "confirmed", maxSupportedTransactionVersion: 2 });
 
         const seq = parseSequenceFromLogSolana(confirmedTx)
-        const emitterAddr = getEmitterAddressSolana(SPL_CAT_PID.toString()); //same as whDerivedEmitter
+        const emitterAddr = wormholeAccounts.emitter.toBuffer().toString("hex"); 
 
         console.log("Sequence: ", seq);
         console.log("Emitter Address: ", emitterAddr);
@@ -508,6 +508,7 @@ describe("cat_sol20", () => {
         const vaaBytes = await axios.get(
           `${restAddress}/v1/signed_vaa/1/${emitterAddr}/${seq}`
         );
+
         VAA = vaaBytes.data.vaaBytes;
         console.log("VAA Bytes: ", vaaBytes.data);
 

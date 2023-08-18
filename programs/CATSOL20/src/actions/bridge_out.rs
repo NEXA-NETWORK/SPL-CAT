@@ -109,93 +109,98 @@ pub struct BridgeOut<'info> {
 
 impl BridgeOut<'_> {
     pub fn bridge_out(ctx: Context<BridgeOut>, params: BridgeOutParams ) -> Result<()> {
-        // // Pay the Fee
-        // let fee = ctx.accounts.wormhole_bridge.fee();
-        // if fee > 0 {
-        //     solana_program::program::invoke(
-        //         &solana_program::system_instruction::transfer(
-        //             &ctx.accounts.owner.key(),
-        //             &ctx.accounts.wormhole_fee_collector.key(),
-        //             fee,
-        //         ),
-        //         &ctx.accounts.to_account_infos(),
-        //     )?;
-        // }
+        // Pay the Fee
+        let fee = ctx.accounts.wormhole_bridge.fee();
+        if fee > 0 {
+            solana_program::program::invoke(
+                &solana_program::system_instruction::transfer(
+                    &ctx.accounts.owner.key(),
+                    &ctx.accounts.wormhole_fee_collector.key(),
+                    fee,
+                ),
+                &ctx.accounts.to_account_infos(),
+            )?;
+        }
 
-        // // Burn the tokens
-        // let cpi_program = ctx.accounts.token_program.to_account_info();
-        // let cpi_accounts = Burn {
-        //     mint: ctx.accounts.token_mint.to_account_info(),
-        //     from: ctx.accounts.token_user_ata.to_account_info(),
-        //     authority: ctx.accounts.owner.to_account_info(),
-        // };
-        // let bump = *ctx
-        //     .bumps
-        //     .get("token_mint")
-        //     .ok_or(ErrorFactory::BumpNotFound)?;
-
-        // let cpi_signer_seeds = &[
-        //     b"spl_cat_token".as_ref(),
-        //     &[bump],
-        // ];
-        // let cpi_signer = &[&cpi_signer_seeds[..]];
+        // Burn the tokens
+        let cpi_program = ctx.accounts.token_program.to_account_info();
+        let cpi_accounts = Burn {
+            mint: ctx.accounts.token_mint.to_account_info(),
+            from: ctx.accounts.token_user_ata.to_account_info(),
+            authority: ctx.accounts.owner.to_account_info(),
+        };
+        let bump = *ctx
+            .bumps
+            .get("token_mint")
+            .ok_or(ErrorFactory::BumpNotFound)?;
         
-        // let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
+        let user_key = &ctx.accounts.user;
 
-        // burn(cpi_ctx, params.amount)?;
+        let cpi_signer_seeds = &[
+            b"spl_cat_token".as_ref(),
+            user_key.key.as_ref(),
+            &[bump],
+        ];
+        let cpi_signer = &[&cpi_signer_seeds[..]];
+        
+        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
 
-        // // Normalize the amount to a Standard 8 decimals
-        // let decimals = ctx.accounts.token_mint.decimals;
-        // let foreign_amount = normalize_amount(params.amount, decimals);
+        burn(cpi_ctx, params.amount)?;
 
-        // // Create the payload
-        // let payload = CrossChainStruct {
-        //     amount: U256::from(foreign_amount),
-        //     token_address: ctx.accounts.token_user_ata.key().to_bytes(),
-        //     token_chain: wormhole::CHAIN_ID_SOLANA,
-        //     to_address: params.recipient,
-        //     to_chain: params.recipient_chain,
-        //     token_decimals: ctx.accounts.token_mint.decimals,
-        // };
+        // Normalize the amount to a Standard 8 decimals
+        let decimals = ctx.accounts.token_mint.decimals;
+        let foreign_amount = normalize_amount(params.amount, decimals);
 
-        // // Serialize the payload
-        // let cat_sol_struct = CATSOLStructs::CrossChainPayload { payload };
-        // let mut encoded_payload: Vec<u8> = Vec::new();
-        // cat_sol_struct.serialize(&mut encoded_payload)?;
+        // Create the payload
+        let payload = CrossChainStruct {
+            amount: U256::from(foreign_amount),
+            token_address: ctx.accounts.token_user_ata.key().to_bytes(),
+            token_chain: wormhole::CHAIN_ID_SOLANA,
+            to_address: params.recipient,
+            to_chain: params.recipient_chain,
+            token_decimals: ctx.accounts.token_mint.decimals,
+        };
 
-        // let wormhole_emitter = &ctx.accounts.wormhole_emitter;
-        // let config = &ctx.accounts.config;
+        // Serialize the payload
+        let cat_sol_struct = CATSOLStructs::CrossChainPayload { payload };
+        let mut encoded_payload: Vec<u8> = Vec::new();
+        cat_sol_struct.serialize(&mut encoded_payload)?;
 
-        // wormhole::post_message(
-        //     CpiContext::new_with_signer(
-        //         ctx.accounts.wormhole_program.to_account_info(),
-        //         wormhole::PostMessage {
-        //             config: ctx.accounts.wormhole_bridge.to_account_info(),
-        //             message: ctx.accounts.wormhole_message.to_account_info(),
-        //             emitter: wormhole_emitter.to_account_info(),
-        //             sequence: ctx.accounts.wormhole_sequence.to_account_info(),
-        //             payer: ctx.accounts.owner.to_account_info(),
-        //             fee_collector: ctx.accounts.wormhole_fee_collector.to_account_info(),
-        //             clock: ctx.accounts.clock.to_account_info(),
-        //             rent: ctx.accounts.rent.to_account_info(),
-        //             system_program: ctx.accounts.system_program.to_account_info(),
-        //         },
-        //         &[
-        //             &[
-        //                 SEED_PREFIX_SENT,
-        //                 &ctx.accounts.wormhole_sequence.next_value().to_le_bytes()[..],
-        //                 &[*ctx
-        //                     .bumps
-        //                     .get("wormhole_message")
-        //                     .ok_or(ErrorFactory::BumpNotFound)?],
-        //             ],
-        //             &[wormhole::SEED_PREFIX_EMITTER, &[wormhole_emitter.bump]],
-        //         ],
-        //     ),
-        //     config.batch_id,
-        //     encoded_payload,
-        //     config.finality.into(),
-        // )?;
+        let wormhole_emitter = &ctx.accounts.wormhole_emitter;
+        let token_mint = &ctx.accounts.token_mint;
+        let config = &ctx.accounts.config;
+
+        wormhole::post_message(
+            CpiContext::new_with_signer(
+                ctx.accounts.wormhole_program.to_account_info(),
+                wormhole::PostMessage {
+                    config: ctx.accounts.wormhole_bridge.to_account_info(),
+                    message: ctx.accounts.wormhole_message.to_account_info(),
+                    emitter: wormhole_emitter.to_account_info(),
+                    sequence: ctx.accounts.wormhole_sequence.to_account_info(),
+                    payer: ctx.accounts.owner.to_account_info(),
+                    fee_collector: ctx.accounts.wormhole_fee_collector.to_account_info(),
+                    clock: ctx.accounts.clock.to_account_info(),
+                    rent: ctx.accounts.rent.to_account_info(),
+                    system_program: ctx.accounts.system_program.to_account_info(),
+                },
+                &[
+                    &[
+                        SEED_PREFIX_SENT,
+                        wormhole_emitter.key().as_ref(),
+                        &ctx.accounts.wormhole_sequence.next_value().to_le_bytes()[..],
+                        &[*ctx
+                            .bumps
+                            .get("wormhole_message")
+                            .ok_or(ErrorFactory::BumpNotFound)?],
+                    ],
+                    &[wormhole::SEED_PREFIX_EMITTER, token_mint.key().as_ref(),  &[wormhole_emitter.bump]],
+                ],
+            ),
+            config.batch_id,
+            encoded_payload,
+            config.finality.into(),
+        )?;
 
         // Done.
         Ok(())

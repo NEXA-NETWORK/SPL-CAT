@@ -180,11 +180,9 @@ impl Initialize<'_> {
             .get("token_mint")
             .ok_or(ErrorFactory::BumpNotFound)?;
 
-            let user_key = &ctx.accounts.user;
-
             let metadata_signer_seeds = &[
                 b"spl_cat_token".as_ref(),
-                user_key.key.as_ref(),
+                ctx.accounts.user.key.as_ref(),
                 &[bump],
             ];
 
