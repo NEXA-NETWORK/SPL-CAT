@@ -14,30 +14,30 @@ use crate::{
 pub struct MintTokens<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
-
-    /// CHECK: The user account we're initializing for. Required for creating PDAs
     #[account(mut)]
-    pub user: AccountInfo<'info>,
+    pub payer: Signer<'info>,
+    #[account(mut)]
+    pub ata_authority: AccountInfo<'info>,
 
     #[account(
         has_one = owner @ ErrorFactory::OwnerOnly,
-        seeds = [Config::SEED_PREFIX, user.key().as_ref()],
+        seeds = [Config::SEED_PREFIX, owner.key().as_ref()],
         bump
     )]
     pub config: Box<Account<'info, Config>>,
 
     #[account(
         mut, 
-        seeds = [SEED_PREFIX_MINT, user.key().as_ref()],
+        seeds = [SEED_PREFIX_MINT, owner.key().as_ref()],
         bump
     )]
     pub token_mint: Account<'info, Mint>,
 
     #[account(
         init_if_needed,
-        payer = owner,
+        payer = payer,
         associated_token::mint = token_mint,
-        associated_token::authority = user,
+        associated_token::authority = ata_authority,
     )]
     pub token_user_ata: Account<'info, TokenAccount>,
 
@@ -51,7 +51,6 @@ impl MintTokens<'_> {
 
     pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
         let config = &mut ctx.accounts.config;
-        let user = &ctx.accounts.user;
 
         // Check if the amount doesn't exceed the max supply
         if amount + config.minted_supply >= config.max_supply {
@@ -72,7 +71,7 @@ impl MintTokens<'_> {
         
         let cpi_signer_seeds = &[
             b"spl_cat_token".as_ref(),
-            user.key.as_ref(),
+            ctx.accounts.owner.key.as_ref(),
             &[bump],
         ];
         let cpi_signer = &[&cpi_signer_seeds[..]];

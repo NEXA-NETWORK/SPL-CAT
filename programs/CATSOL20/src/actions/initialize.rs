@@ -29,15 +29,14 @@ pub struct InitializeParams {
 /// Context used to initialize program data (i.e. config).
 pub struct Initialize<'info> {
     #[account(mut)]
-    pub owner: Signer<'info>,
+    pub payer: Signer<'info>,
 
-    /// CHECK: The user account we're initializing for. Required for creating PDAs
-    pub user: AccountInfo<'info>,
+    pub owner: Signer<'info>,
 
     #[account(
         init,
-        payer = owner,
-        seeds = [Config::SEED_PREFIX, user.key().as_ref()],
+        payer = payer,
+        seeds = [Config::SEED_PREFIX, owner.key().as_ref()],
         bump,
         space = Config::MAXIMUM_SIZE,
 
@@ -46,9 +45,9 @@ pub struct Initialize<'info> {
 
     #[account(
         init, 
-        seeds = [SEED_PREFIX_MINT, user.key().as_ref()],
+        seeds = [SEED_PREFIX_MINT, owner.key().as_ref()],
         bump,
-        payer = owner,
+        payer = payer,
         mint::decimals = params.decimals,
         mint::authority = token_mint.key(),
     )]
@@ -89,7 +88,7 @@ pub struct Initialize<'info> {
 
     #[account(
         init,
-        payer = owner,
+        payer = payer,
         seeds = [WormholeEmitter::SEED_PREFIX, token_mint.key().as_ref()],
         bump,
         space = WormholeEmitter::MAXIMUM_SIZE
@@ -132,14 +131,16 @@ impl Initialize<'_> {
         params: &InitializeParams,
     ) -> Result<()> {
         let config = &mut ctx.accounts.config;
-        config.owner = ctx.accounts.owner.key();
+         // During initialization, the payer will be the owner. 
+         // So we can register foreign emitters for the contract.
+         // Later on we will transfer the ownership to the user.
+        config.owner = ctx.accounts.payer.key();
 
         {
             let wormhole = &mut config.wormhole;
             wormhole.bridge = ctx.accounts.wormhole_bridge.key();
             wormhole.fee_collector = ctx.accounts.wormhole_fee_collector.key();
             wormhole.sequence = ctx.accounts.wormhole_sequence.key();
-            msg!("Wormhole: {:?}", wormhole);
         }
 
         // Set default values for posting Wormhole messages.
@@ -161,7 +162,7 @@ impl Initialize<'_> {
                 ctx.accounts.metadata_account.key(),
                 ctx.accounts.token_mint.key(),
                 ctx.accounts.token_mint.key(),
-                ctx.accounts.owner.key(),
+                ctx.accounts.payer.key(),
                 ctx.accounts.token_mint.key(),
                 params.name.clone(),
                 params.symbol.clone(),
@@ -182,7 +183,7 @@ impl Initialize<'_> {
 
             let metadata_signer_seeds = &[
                 b"spl_cat_token".as_ref(),
-                ctx.accounts.user.key.as_ref(),
+                ctx.accounts.owner.key.as_ref(),
                 &[bump],
             ];
 
@@ -190,7 +191,7 @@ impl Initialize<'_> {
             invoke_signed(
                 &create_metadata_account_ix,
                 &[
-                    ctx.accounts.owner.to_account_info(),
+                    ctx.accounts.payer.to_account_info(),
                     ctx.accounts.metadata_account.to_account_info(),
                     ctx.accounts.token_mint.to_account_info(),
                     ctx.accounts.metadata_program.to_account_info(),
@@ -209,7 +210,7 @@ impl Initialize<'_> {
             if fee > 0 {
                 solana_program::program::invoke(
                     &solana_program::system_instruction::transfer(
-                        &ctx.accounts.owner.key(),
+                        &ctx.accounts.payer.key(),
                         &ctx.accounts.wormhole_fee_collector.key(),
                         fee,
                     ),
@@ -236,7 +237,7 @@ impl Initialize<'_> {
                         message: ctx.accounts.wormhole_message.to_account_info(),
                         emitter: wormhole_emitter.to_account_info(),
                         sequence: ctx.accounts.wormhole_sequence.to_account_info(),
-                        payer: ctx.accounts.owner.to_account_info(),
+                        payer: ctx.accounts.payer.to_account_info(),
                         fee_collector: ctx.accounts.wormhole_fee_collector.to_account_info(),
                         clock: ctx.accounts.clock.to_account_info(),
                         rent: ctx.accounts.rent.to_account_info(),

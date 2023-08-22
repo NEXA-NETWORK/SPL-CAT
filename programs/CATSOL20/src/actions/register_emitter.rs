@@ -17,7 +17,7 @@ pub struct RegisterEmitter<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// CHECK: This is the new owner
+    /// CHECK: The Users Key is Required for the Config
     pub user: AccountInfo<'info>,
 
     #[account(

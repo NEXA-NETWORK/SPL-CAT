@@ -17,19 +17,24 @@ use crate::{
 #[derive(Accounts)]
 #[instruction(vaa_hash: [u8; 32])]
 pub struct BridgeIn<'info> {
-    /// Owner will initialize an account that tracks his own payloads
+    /// I think the owner should be in the seeds of the token_mint
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
-    /// CHECK: This is the authority of the ATA
+    /// CHECK: User account
     #[account(mut)]
-    pub ata_authority: UncheckedAccount<'info>,
+    pub user: AccountInfo<'info>,
 
-    /// Token Mint. The token that is bridged in.
+    #[account(
+        mut,
+        seeds = [Config::SEED_PREFIX, user.key().as_ref()],
+        bump,
+    )]
+    pub config: Box<Account<'info, Config>>,
+
     #[account(
         mut, 
-        seeds = [SEED_PREFIX_MINT],
+        seeds = [SEED_PREFIX_MINT, user.key().as_ref()],
         bump
     )]
     pub token_mint: Account<'info, Mint>,
@@ -40,7 +45,7 @@ pub struct BridgeIn<'info> {
         init_if_needed,
         payer = owner,
         associated_token::mint = token_mint,
-        associated_token::authority = ata_authority,
+        associated_token::authority = user,
     )]
     pub token_user_ata: Account<'info, TokenAccount>,
 
@@ -48,15 +53,6 @@ pub struct BridgeIn<'info> {
     pub token_program: Program<'info, Token>,
     // Associated Token Program
     pub associated_token_program: Program<'info, AssociatedToken>,
-
-    #[account(
-        mut,
-        seeds = [Config::SEED_PREFIX],
-        bump,
-    )]
-    /// Config account. Wormhole PDAs specified in the config are checked
-    /// against the Wormhole accounts in this context. Read-only.
-    pub config: Box<Account<'info, Config>>,
 
     // Wormhole program.
     pub wormhole_program: Program<'info, wormhole::program::Wormhole>,
@@ -78,6 +74,7 @@ pub struct BridgeIn<'info> {
         payer = owner,
         seeds = [
             Received::SEED_PREFIX,
+            config.key().as_ref(),
             &posted.emitter_chain().to_le_bytes()[..],
             &posted.sequence().to_le_bytes()[..]
         ],
@@ -89,14 +86,12 @@ pub struct BridgeIn<'info> {
     #[account(
         seeds = [
             ForeignEmitter::SEED_PREFIX,
+            config.key().as_ref(),
             &posted.emitter_chain().to_le_bytes()[..]
         ],
         bump,
         constraint = foreign_emitter.verify(posted.emitter_address()) @ ErrorFactory::InvalidForeignEmitter
     )]
-    /// Foreign emitter account. The posted message's `emitter_address` must
-    /// agree with the one we have registered for this message's `emitter_chain`
-    /// (chain ID). Read-only.
     pub foreign_emitter: Account<'info, ForeignEmitter>,
 
     /// System program.
@@ -145,6 +140,7 @@ impl BridgeIn<'_> {
 
             let cpi_signer_seeds = &[
                 b"spl_cat_token".as_ref(),
+                ctx.accounts.user.key.as_ref(),
                 &[bump],
             ];
             let cpi_signer = &[&cpi_signer_seeds[..]];
@@ -153,7 +149,7 @@ impl BridgeIn<'_> {
 
             mint_to(cpi_ctx, normalized_amount)?;
 
-            //Save batch ID, keccak256 hash and message payload.
+            //Save keccak256 hash
             let received = &mut ctx.accounts.received;
             received.wormhole_message_hash = vaa_hash;
 
