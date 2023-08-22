@@ -34,15 +34,6 @@ pub struct BridgeOut<'info> {
     #[account(mut)]
     pub token_user_ata: Box<Account<'info, TokenAccount>>,
 
-    // /// CHECK: Token ATA PDA. The PDA of the ATA that will hold the locked tokens. It will act
-    // /// as the authority as well.
-    // #[account(
-    //     mut,
-    //     seeds = [SEED_PREFIX_LOCK, token_mint.key().as_ref()],
-    //     bump,
-    //   )]
-    // pub token_ata_pda: AccountInfo<'info>,
-
     // Token Mint ATA. Its an Associated Token Account owned by the Program that will hold the locked tokens
     #[account(
         mut,
@@ -58,7 +49,6 @@ pub struct BridgeOut<'info> {
     // Associated Token Program
     pub associated_token_program: Program<'info, AssociatedToken>,
 
-    // --------------------- Wormhole ---------------------
     #[account(
         mut,
         seeds = [Config::SEED_PREFIX],
@@ -152,7 +142,6 @@ impl BridgeOut<'_> {
             )?;
         }
 
-        
         // Transfer the tokens
         let cpi_program = ctx.accounts.token_program.to_account_info();
         let cpi_accounts = Transfer {
@@ -175,12 +164,8 @@ impl BridgeOut<'_> {
 
         let balance_before = ctx.accounts.token_mint_ata.amount;
 
-        match transfer(cpi_ctx, params.amount) {
-            Ok(_) => {}
-            Err(e) => {
-                return Err(e);
-            }
-        }
+        transfer(cpi_ctx, params.amount)?;
+
         // Reload the account to get the updated balance
         ctx.accounts.token_mint_ata.reload()?;
         let amount_transferred = ctx.accounts.token_mint_ata.amount - balance_before;
@@ -207,7 +192,7 @@ impl BridgeOut<'_> {
         let wormhole_emitter = &ctx.accounts.wormhole_emitter;
         let config = &ctx.accounts.config;
 
-        match wormhole::post_message(
+        wormhole::post_message(
             CpiContext::new_with_signer(
                 ctx.accounts.wormhole_program.to_account_info(),
                 wormhole::PostMessage {
@@ -236,12 +221,7 @@ impl BridgeOut<'_> {
             config.batch_id,
             encoded_payload,
             config.finality.into(),
-        ) {
-            Ok(_) => {}
-            Err(e) => {
-                return Err(e);
-            }
-        }
+        )?;
 
         // Done.
         Ok(())

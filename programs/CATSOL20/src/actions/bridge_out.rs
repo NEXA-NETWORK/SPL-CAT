@@ -53,8 +53,6 @@ pub struct BridgeOut<'info> {
     // Associated Token Program
     pub associated_token_program: Program<'info, AssociatedToken>,
 
-    // --------------------- Wormhole ---------------------
-
     #[account(
         mut,
         seeds = [Config::SEED_PREFIX],

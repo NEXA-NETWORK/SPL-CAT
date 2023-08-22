@@ -30,15 +30,6 @@ pub struct BridgeIn<'info> {
     #[account(mut)]
     pub token_user_ata: Account<'info, TokenAccount>,
 
-    // /// CHECK: Token ATA PDA. The PDA of the ATA that will hold the locked tokens. It will act
-    // /// as the authority as well.
-    // #[account(
-    //     mut,
-    //     seeds = [SEED_PREFIX_LOCK, token_mint.key().as_ref()],
-    //     bump,
-    //   )]
-    // pub token_ata_pda: AccountInfo<'info>,
-
     // Token Mint ATA. Its an Associated Token Account owned by the Program that will hold the locked tokens
     #[account(
         mut,
@@ -89,6 +80,10 @@ pub struct BridgeIn<'info> {
         bump,
         space = Received::MAXIMUM_SIZE
     )]
+    /// Received account. [`receive_message`](crate::receive_message) will
+    /// deserialize the Wormhole message's payload and save it to this account.
+    /// This account cannot be overwritten, and will prevent Wormhole message
+    /// replay with the same sequence.
     pub received: Account<'info, Received>,
 
     #[account(
@@ -159,24 +154,10 @@ impl BridgeIn<'_> {
 
             let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
 
-            match transfer(cpi_ctx, normalized_amount) {
-                Ok(_) => {}
-                Err(e) => {
-                    return Err(e);
-                }
-            }
+            transfer(cpi_ctx, normalized_amount)?;
 
-            // Serialize the payload to save it
-            let mut serialized_payload: Vec<u8> = Vec::new();
-            CATSOLStructs::CrossChainPayload {
-                payload: payload.clone(),
-            }
-            .serialize(&mut serialized_payload)?;
-
-            //Save batch ID, keccak256 hash and message payload.
+            //Save keccak256 hash.
             let received = &mut ctx.accounts.received;
-            received.batch_id = posted_message.batch_id();
-            received.payload = serialized_payload;
             received.wormhole_message_hash = vaa_hash;
 
             // Done

@@ -7,15 +7,17 @@ use crate::{
 
 #[derive(Accounts)]
 pub struct TransferOwnership<'info> {
+    /// The Current Owner of the Config Account
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    #[account(mut)]
-    pub new_owner: Signer<'info>,
+    /// CHECK: The new owner of the Config Account
+    pub new_owner: UncheckedAccount<'info>,
 
     #[account(
         mut,
         has_one = owner @ ErrorFactory::OwnerOnly,
+        constraint = config.owner != new_owner.key() @ ErrorFactory::AlreadyOwner,
         seeds = [Config::SEED_PREFIX],
         bump
     )]
