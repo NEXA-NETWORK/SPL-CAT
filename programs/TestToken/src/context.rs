@@ -18,7 +18,7 @@ pub struct Initialize<'info> {
 
     /// CHECK: This is the authority of the ATA
     #[account(mut)]
-    pub ata_authority: AccountInfo<'info>,
+    pub ata_authority: UncheckedAccount<'info>,
 
     #[account(
         init,
@@ -74,7 +74,7 @@ pub struct MintTokens<'info> {
     /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
     /// CHECK: This is the authority of the ATA
     #[account(mut)]
-    pub ata_authority: AccountInfo<'info>,
+    pub ata_authority: UncheckedAccount<'info>,
 
     /// Token Mint. The token that is bridged in.
     #[account(

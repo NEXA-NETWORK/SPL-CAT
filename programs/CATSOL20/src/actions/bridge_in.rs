@@ -21,8 +21,7 @@ pub struct BridgeIn<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
-    /// CHECK: This is the authority of the ATA
+    /// CHECK: ATA Authority. The authority of the ATA that will hold the bridged tokens.
     #[account(mut)]
     pub ata_authority: UncheckedAccount<'info>,
 

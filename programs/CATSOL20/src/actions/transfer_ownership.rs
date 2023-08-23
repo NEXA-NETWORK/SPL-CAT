@@ -7,10 +7,11 @@ use crate::{
 
 #[derive(Accounts)]
 pub struct TransferOwnership<'info> {
+    /// The Current Owner of the Config Account
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// CHECK: This is the new owner
+    /// CHECK: The new owner of the Config Account
     pub new_owner: UncheckedAccount<'info>,
 
     #[account(
