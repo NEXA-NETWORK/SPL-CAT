@@ -140,8 +140,18 @@ impl CreateCollection<'_> {
 
         msg!("Token Minted !!!");
 
+        let bump = *ctx
+            .bumps
+            .get("token_mint")
+            .ok_or(ErrorFactory::BumpNotFound)?;
+
+            let signer_seeds = &[
+                b"spl_cat_nft".as_ref(),
+                &[bump],
+            ];
+
         // Create Metadata for the token.
-        {
+        
             
             let creator = vec![
                 Creator {
@@ -170,17 +180,6 @@ impl CreateCollection<'_> {
                 None,
             );
 
-            let bump = *ctx
-            .bumps
-            .get("token_mint")
-            .ok_or(ErrorFactory::BumpNotFound)?;
-
-            let metadata_signer_seeds = &[
-                b"spl_cat_nft".as_ref(),
-                &[bump],
-            ];
-
-
             invoke_signed(
                 &create_metadata_account_ix,
                 &[
@@ -190,9 +189,41 @@ impl CreateCollection<'_> {
                     ctx.accounts.metadata_program.to_account_info(),
                     ctx.accounts.system_program.to_account_info(),
                 ],
-                &[metadata_signer_seeds],
+                &[signer_seeds],
             )?;
-        }
+        
+
+        // Create Master Edition
+        
+
+            let master_edition_infos = vec![
+            ctx.accounts.master_edition.to_account_info(),
+            ctx.accounts.token_mint.to_account_info(),
+            ctx.accounts.token_mint.to_account_info(),
+            ctx.accounts.owner.to_account_info(),
+            ctx.accounts.metadata_account.to_account_info(),
+            ctx.accounts.metadata_program.to_account_info(),
+            ctx.accounts.token_program.to_account_info(),
+            ctx.accounts.system_program.to_account_info(),
+            ctx.accounts.rent.to_account_info(),
+        ];
+        msg!("Master Edition Account Infos Assigned");
+        invoke_signed(
+            &create_master_edition_v3(
+                ctx.accounts.metadata_program.key(),
+                ctx.accounts.master_edition.key(),
+                ctx.accounts.token_mint.key(),
+                ctx.accounts.token_mint.key(),
+                ctx.accounts.token_mint.key(),
+                ctx.accounts.metadata_account.key(),
+                ctx.accounts.owner.key(),
+                Some(0),
+            ),
+            master_edition_infos.as_slice(),
+            &[&[b"spl_cat_nft".as_ref(), &[bump]]],
+        )?;
+
+        
 
 
         Ok(())
