@@ -56,9 +56,9 @@ describe("cat_sol20", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(provider);
 
-  let program;
+  let program: Program<CatSol20>;
 
-  let SPL_CAT_PID;
+  let SPL_CAT_PID: PublicKey;
 
 
   const CORE_BRIDGE_PID = "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o";
@@ -139,7 +139,8 @@ describe("cat_sol20", () => {
         let max_supply = new anchor.BN("10000000000000000000");
         // let max_supply = new anchor.BN("0");
 
-        const tx = await program.methods.initialize({
+
+        const method = program.methods.initialize({
           decimals: 9,
           maxSupply: max_supply,
           name: "Cat Token",
@@ -161,8 +162,21 @@ describe("cat_sol20", () => {
           clock: wormhole.clock,
           rent: wormhole.rent,
           systemProgram: anchor.web3.SystemProgram.programId,
-        }).signers([KEYPAIR]).rpc({ skipPreflight: true });
-        console.log("Your transaction signature", tx);
+        }).signers([KEYPAIR]);
+
+        const tx = await method.transaction();
+        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
+        tx.feePayer = KEYPAIR.publicKey;
+        const message = tx.compileMessage();
+
+        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
+        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
+
+        const simulate = await provider.connection.simulateTransaction(tx);
+        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
+
+        const rpc = await method.rpc();
+        console.log("Your transaction signature", rpc);
 
         // Check the config account
         const configAccount = await program.account.config.fetch(configAcc);
@@ -187,7 +201,7 @@ describe("cat_sol20", () => {
         );
 
         let amount = new anchor.BN("100000000000000000");
-        const tx = await program.methods.mintTokens(amount).accounts({
+        const method = program.methods.mintTokens(amount).accounts({
           owner: KEYPAIR.publicKey,
           ataAuthority: KEYPAIR.publicKey,
           config: configAcc,
@@ -196,8 +210,21 @@ describe("cat_sol20", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
-        }).signers([KEYPAIR]).rpc({ skipPreflight: true });
-        console.log("Your transaction signature", tx);
+        }).signers([KEYPAIR]);
+
+        const tx = await method.transaction();
+        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
+        tx.feePayer = KEYPAIR.publicKey;
+        const message = tx.compileMessage();
+
+        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
+        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
+
+        const simulate = await provider.connection.simulateTransaction(tx);
+        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
+
+        const rpc = await method.rpc();
+        console.log("Your transaction signature", rpc);
       } catch (e: any) {
         console.log(e);
       }
@@ -234,11 +261,25 @@ describe("cat_sol20", () => {
         Buffer.from("config")
       ], SPL_CAT_PID);
 
-      const tx = await program.methods.transferOwnership().accounts({
+      const method = program.methods.transferOwnership().accounts({
         owner: KEYPAIR.publicKey,
         newOwner: newOwner.publicKey,
         config: configAcc,
-      }).signers([KEYPAIR]).rpc();
+      }).signers([KEYPAIR]);
+
+      const tx = await method.transaction();
+      tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
+      tx.feePayer = KEYPAIR.publicKey;
+      const message = tx.compileMessage();
+
+      const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
+      console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
+
+      const simulate = await provider.connection.simulateTransaction(tx);
+      console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
+
+      const rpc = await method.rpc();
+      console.log("Your transaction signature", rpc);
 
       // You can assert that the transaction was successful.
       assert.ok(tx, "Transaction failed");
@@ -279,7 +320,7 @@ describe("cat_sol20", () => {
         );
 
         let amount = new anchor.BN("100000000000000000");
-        const tx = await program.methods.mintTokens(amount).accounts({
+        const method = await program.methods.mintTokens(amount).accounts({
           owner: newOwner.publicKey,
           ataAuthority: newOwner.publicKey,
           config: configAcc,
@@ -288,8 +329,23 @@ describe("cat_sol20", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
-        }).signers([newOwner]).rpc({ skipPreflight: true });
-        console.log("Your transaction signature", tx);
+        }).signers([newOwner]);
+
+        const tx = await method.transaction();
+
+        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
+        tx.feePayer = KEYPAIR.publicKey;
+        const message = tx.compileMessage();
+
+        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
+        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
+
+        const simulate = await provider.connection.simulateTransaction(tx);
+        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
+
+        const rpc = await method.rpc();
+        console.log("Your transaction signature", rpc);
+
       } catch (e: any) {
         console.log(e);
       }
@@ -318,7 +374,7 @@ describe("cat_sol20", () => {
           Buffer.from("config")
         ], SPL_CAT_PID);
 
-        const tx = await program.methods.registerEmitter({
+        const method = program.methods.registerEmitter({
           chain: CHAINS.ethereum,
           address: targetEmitterAddress,
         }).accounts({
@@ -328,10 +384,24 @@ describe("cat_sol20", () => {
           systemProgram: anchor.web3.SystemProgram.programId
         })
           .signers([newOwner])
-          .rpc();
-        assert.ok(tx, "Transaction failed to register a chain");
-        console.log("Your transaction signature", tx);
-        console.log("Your transaction signature", tx);
+
+        const tx = await method.transaction();
+
+        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
+        tx.feePayer = KEYPAIR.publicKey;
+        const message = tx.compileMessage();
+
+        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
+        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
+
+        const simulate = await provider.connection.simulateTransaction(tx);
+        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
+
+        const rpc = await method.rpc();
+        console.log("Your transaction signature", rpc);
+
+        assert.ok(rpc, "Transaction failed to register a chain");
+
       } catch (e: any) {
         console.log(e);
         assert.fail(`Unexpected error occurred: ${e.message}`);
@@ -429,7 +499,7 @@ describe("cat_sol20", () => {
         // Parameters
         let amount = new anchor.BN("10000000000000000");
         let recipientChain = 2;
-        const tx = await program.methods.bridgeOut({
+        const method = program.methods.bridgeOut({
           amount,
           recipientChain,
           recipient,
@@ -446,12 +516,27 @@ describe("cat_sol20", () => {
           foreignEmitter: emitterAcc,
           config: configAcc,
           ...wormholeAccounts,
-        }).signers([newOwner]).rpc();
+        }).signers([newOwner])
+
+        const tx = await method.transaction();
+
+        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
+        tx.feePayer = KEYPAIR.publicKey;
+        const message = tx.compileMessage();
+
+        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
+        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
+
+        const simulate = await provider.connection.simulateTransaction(tx);
+        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
+
+        const rpc = await method.rpc();
+        console.log("Your transaction signature", rpc);
 
         console.log("Your transaction signature", tx);
         await new Promise((r) => setTimeout(r, 3000)); // Wait for tx to be confirmed
 
-        const confirmedTx = await provider.connection.getTransaction(tx, { commitment: "confirmed", maxSupportedTransactionVersion: 2 });
+        const confirmedTx = await provider.connection.getTransaction(rpc, { commitment: "confirmed", maxSupportedTransactionVersion: 2 });
 
         const seq = parseSequenceFromLogSolana(confirmedTx)
         const emitterAddr = getEmitterAddressSolana(SPL_CAT_PID.toString()); //same as whDerivedEmitter
@@ -525,7 +610,7 @@ describe("cat_sol20", () => {
           foreignChainId,
         ], SPL_CAT_PID)
 
-        const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
+        const method = program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
           owner: newOwner.publicKey,
           ataAuthority: payload.toAddress,
           tokenUserAta: tokenUserATA,
@@ -538,15 +623,29 @@ describe("cat_sol20", () => {
           received: recievedKey,
           config: configAcc,
           systemProgram: anchor.web3.SystemProgram.programId,
-        }).signers([newOwner]).rpc({ skipPreflight: true });
+        }).signers([newOwner]);
 
-        console.log("Your transaction signature", tx);
+        const tx = await method.transaction();
+        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
+        tx.feePayer = KEYPAIR.publicKey;
+        const message = tx.compileMessage();
+
+        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
+        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
+
+        const simulate = await provider.connection.simulateTransaction(tx);
+        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
+
+        const rpc = await method.rpc();
+        console.log("Your transaction signature", rpc);
+
       } catch (e: any) {
         console.log(e);
       }
     });
 
   });
+
 });
 
 
