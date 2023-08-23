@@ -28,9 +28,13 @@ pub struct InitializeParams {
 #[instruction(params: InitializeParams)]
 /// Context used to initialize program data (i.e. config).
 pub struct Initialize<'info> {
+    /// Owner will initialize an account that tracks his own payloads
     #[account(mut)]
     pub owner: Signer<'info>,
 
+    // Config Account is used to store the native token on initialization
+    // The owner of the config account is basically the owner of the program
+    // They can add foreign emitters and mint tokens
     #[account(
         init,
         payer = owner,
@@ -41,6 +45,8 @@ pub struct Initialize<'info> {
     )]
     pub config: Box<Account<'info, Config>>,
 
+
+    /// Token Mint Account. The token that is Will be bridged out
     #[account(
         init, 
         seeds = [SEED_PREFIX_MINT],
@@ -51,7 +57,8 @@ pub struct Initialize<'info> {
     )]
     pub token_mint: Account<'info, Mint>,
 
-    ///CHECK:
+    /// CHECK: Metadata account for the token.
+    /// Stores the token's name, symbol, logo, and other metadata.
     #[account(
         mut,
         seeds = [
@@ -62,10 +69,15 @@ pub struct Initialize<'info> {
         bump,
         seeds::program = mpl_token_metadata::id()  
     )]
-    pub metadata_account: AccountInfo<'info>,
+    pub metadata_account: UncheckedAccount<'info>,
 
+    /// Token Program.
     pub token_program: Program<'info, Token>,
+
+    /// Metadata program.
     pub metadata_program: Program<'info, Metadata>,
+
+    /// Wormhole program.
     pub wormhole_program: Program<'info, wormhole::program::Wormhole>,
 
     #[account(
@@ -74,6 +86,8 @@ pub struct Initialize<'info> {
         bump,
         seeds::program = wormhole_program,
     )]
+    /// Wormhole bridge data account (a.k.a. its config).
+    /// [`wormhole::post_message`] requires this account be mutable.
     pub wormhole_bridge: Account<'info, wormhole::BridgeData>,
 
     #[account(
@@ -82,6 +96,9 @@ pub struct Initialize<'info> {
         bump,
         seeds::program = wormhole_program
     )]
+    /// Wormhole fee collector account, which requires lamports before the
+    /// program can post a message (if there is a fee).
+    /// [`wormhole::post_message`] requires this account be mutable.
     pub wormhole_fee_collector: Account<'info, wormhole::FeeCollector>,
 
     #[account(
@@ -91,6 +108,9 @@ pub struct Initialize<'info> {
         bump,
         space = WormholeEmitter::MAXIMUM_SIZE
     )]
+    /// This program's emitter account. We create this account in the
+    /// [`initialize`](crate::initialize) instruction, but
+    /// [`wormhole::post_message`] only needs it to be read-only.
     pub wormhole_emitter: Account<'info, WormholeEmitter>,
 
     #[account(
@@ -102,7 +122,10 @@ pub struct Initialize<'info> {
         bump,
         seeds::program = wormhole_program
     )]
-    ///CHECK: Its an UncheckedAccount because wormhole will be the one to initialize it.
+    /// CHECK: Emitter's sequence account. This is not created until the first
+    /// message is posted, so it needs to be an [UncheckedAccount] for the
+    /// [`initialize`](crate::initialize) instruction.
+    /// [`wormhole::post_message`] requires this account be mutable.
     pub wormhole_sequence: UncheckedAccount<'info>,
 
     #[account(
@@ -113,11 +136,18 @@ pub struct Initialize<'info> {
         ],
         bump,
     )]
-    ///CHECK:
+    /// CHECK: Wormhole message account. The Wormhole program writes to this
+    /// account, which requires this program's signature.
+    /// [`wormhole::post_message`] requires this account be mutable.
     pub wormhole_message: UncheckedAccount<'info>,
 
+    /// Clock sysvar.
     pub clock: Sysvar<'info, Clock>,
+
+    /// Rent sysvar.
     pub rent: Sysvar<'info, Rent>,
+
+    /// System program.
     pub system_program: Program<'info, System>,
 }
 
@@ -128,16 +158,32 @@ impl Initialize<'_> {
         params: &InitializeParams,
     ) -> Result<()> {
         let config = &mut ctx.accounts.config;
+
+        // Set the owner of the config (effectively the owner of the program).
         config.owner = ctx.accounts.owner.key();
 
+        // Set the Max and Minted Supply
+        config.max_supply = params.max_supply;
+        config.minted_supply = ctx.accounts.token_mint.supply;
+
+        // Set Wormhole related addresses.
         {
             let wormhole = &mut config.wormhole;
+
+            // wormhole::BridgeData (Wormhole's program data).
             wormhole.bridge = ctx.accounts.wormhole_bridge.key();
+
+            // wormhole::FeeCollector (lamports collector for posting
+            // messages).
             wormhole.fee_collector = ctx.accounts.wormhole_fee_collector.key();
+
+            // wormhole::SequenceTracker (tracks # of messages posted by this
+            // program).
             wormhole.sequence = ctx.accounts.wormhole_sequence.key();
         }
 
         // Set default values for posting Wormhole messages.
+        //
         // Zero means no batching.
         config.batch_id = 0;
 
@@ -145,9 +191,6 @@ impl Initialize<'_> {
         // so this value is stored as u8.
         config.finality = wormhole::Finality::Confirmed as u8;
 
-        // Set the Max and Minted Supply
-        config.max_supply = params.max_supply;
-        config.minted_supply = ctx.accounts.token_mint.supply;
 
         // Create Metadata for the tokens.
         {
@@ -194,9 +237,14 @@ impl Initialize<'_> {
             )?;
         }
 
-        ctx.accounts.wormhole_emitter.bump = *ctx.bumps.get("wormhole_emitter").ok_or(ErrorFactory::BumpNotFound)?;
+        // Storing the BumpSeed for the Wormhole Emitter
+        ctx.accounts.wormhole_emitter.bump = *ctx
+            .bumps
+            .get("wormhole_emitter")
+            .ok_or(ErrorFactory::BumpNotFound)?;
 
         // Now We will send a message to initialize the Sequence Tracker for future messages
+        // by posting a message to the Wormhole program.
         {
             // Pay the Fee
             let fee = ctx.accounts.wormhole_bridge.fee();
@@ -253,6 +301,7 @@ impl Initialize<'_> {
             )?;
         }
 
+        // done
         Ok(())
     }
 }
