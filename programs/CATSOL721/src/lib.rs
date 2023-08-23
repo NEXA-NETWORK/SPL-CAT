@@ -21,11 +21,15 @@ pub use utils::*;
 declare_id!("6fi6yXzAnknteN94jJ9iZWjpMBSxp1NdADrqApgW7dV6");
 
 #[program]
-pub mod cat_sol20 {
+pub mod cat_sol721 {
     use super::*;
  
-    pub fn initialize( ctx: Context<Initialize>, params: InitializeParams) -> Result<()> {
-        Initialize::initialize(ctx, &params)
+    pub fn initialize( ctx: Context<Initialize>) -> Result<()> {
+        Initialize::initialize(ctx)
+    }
+
+    pub fn create_collection( ctx: Context<CreateCollection>, params: CreateCollectionParams) -> Result<()> {
+        CreateCollection::create_collection(ctx, &params)
     }
 
     pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64) -> Result<()> {

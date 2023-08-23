@@ -1,9 +1,5 @@
 use anchor_lang::prelude::*;
 use wormhole_anchor_sdk::wormhole;
-use anchor_spl::{
-    token::{Mint, Token},
-    metadata::Metadata,
-};
 
 use crate::{
     constants::*,
@@ -12,20 +8,8 @@ use crate::{
     state::{Config, WormholeEmitter}
 };
 
-use anchor_lang::solana_program::{self, program::invoke_signed};
-use mpl_token_metadata::instruction::create_metadata_accounts_v3;
-
-#[derive(Clone, AnchorSerialize, AnchorDeserialize)]
-pub struct InitializeParams {
-    pub decimals: u8,
-    pub max_supply: u64,
-    pub name: String,
-    pub symbol: String,
-    pub uri: String,
-}
 
 #[derive(Accounts)]
-#[instruction(params: InitializeParams)]
 /// Context used to initialize program data (i.e. config).
 pub struct Initialize<'info> {
     #[account(mut)]
@@ -41,31 +25,6 @@ pub struct Initialize<'info> {
     )]
     pub config: Box<Account<'info, Config>>,
 
-    #[account(
-        init, 
-        seeds = [SEED_PREFIX_MINT],
-        bump,
-        payer = owner,
-        mint::decimals = params.decimals,
-        mint::authority = token_mint.key(),
-    )]
-    pub token_mint: Account<'info, Mint>,
-
-    ///CHECK:
-    #[account(
-        mut,
-        seeds = [
-            b"metadata",
-            mpl_token_metadata::id().as_ref(),
-            token_mint.key().as_ref(),
-        ],
-        bump,
-        seeds::program = mpl_token_metadata::id()  
-    )]
-    pub metadata_account: AccountInfo<'info>,
-
-    pub token_program: Program<'info, Token>,
-    pub metadata_program: Program<'info, Metadata>,
     pub wormhole_program: Program<'info, wormhole::program::Wormhole>,
 
     #[account(
@@ -125,7 +84,6 @@ pub struct Initialize<'info> {
 impl Initialize<'_> {
     pub fn initialize(
         ctx: Context<Initialize>,
-        params: &InitializeParams,
     ) -> Result<()> {
         let config = &mut ctx.accounts.config;
         config.owner = ctx.accounts.owner.key();
@@ -144,55 +102,6 @@ impl Initialize<'_> {
         // Anchor IDL default coder cannot handle wormhole::Finality enum,
         // so this value is stored as u8.
         config.finality = wormhole::Finality::Confirmed as u8;
-
-        // Set the Max and Minted Supply
-        config.max_supply = params.max_supply;
-        config.minted_supply = ctx.accounts.token_mint.supply;
-
-        // Create Metadata for the tokens.
-        {
-            let create_metadata_account_ix = create_metadata_accounts_v3(
-                ctx.accounts.metadata_program.key(),
-                ctx.accounts.metadata_account.key(),
-                ctx.accounts.token_mint.key(),
-                ctx.accounts.token_mint.key(),
-                ctx.accounts.owner.key(),
-                ctx.accounts.token_mint.key(),
-                params.name.clone(),
-                params.symbol.clone(),
-                params.uri.clone(),
-                None,
-                0,
-                true,
-                true,
-                None,
-                None,
-                None,
-            );
-
-            let bump = *ctx
-            .bumps
-            .get("token_mint")
-            .ok_or(ErrorFactory::BumpNotFound)?;
-
-            let metadata_signer_seeds = &[
-                b"spl_cat_token".as_ref(),
-                &[bump],
-            ];
-
-
-            invoke_signed(
-                &create_metadata_account_ix,
-                &[
-                    ctx.accounts.owner.to_account_info(),
-                    ctx.accounts.metadata_account.to_account_info(),
-                    ctx.accounts.token_mint.to_account_info(),
-                    ctx.accounts.metadata_program.to_account_info(),
-                    ctx.accounts.system_program.to_account_info(),
-                ],
-                &[metadata_signer_seeds],
-            )?;
-        }
 
         ctx.accounts.wormhole_emitter.bump = *ctx.bumps.get("wormhole_emitter").ok_or(ErrorFactory::BumpNotFound)?;
 

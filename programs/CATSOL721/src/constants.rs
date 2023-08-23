@@ -4,4 +4,7 @@ pub const CORE_BRIDGE_ADDRESS: &str = "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY
 pub const SEED_PREFIX_SENT: &[u8; 4] = b"sent";
 
 // SEED Prefix for the Mint Account
-pub const SEED_PREFIX_MINT: &'static [u8; 13] = b"spl_cat_token";
+pub const SEED_PREFIX_MINT: &'static [u8; 11] = b"spl_cat_nft";
+
+// SEED Prefix for the Mint Account
+pub const SEED_PREFIX_COLLECTION: &'static [u8; 18] = b"spl_cat_collection";

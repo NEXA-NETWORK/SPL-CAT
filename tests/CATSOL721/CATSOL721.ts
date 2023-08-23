@@ -1,7 +1,7 @@
 import * as anchor from "@coral-xyz/anchor";
 import { assert, expect } from "chai";
 import { Program } from "@coral-xyz/anchor";
-import { CatSol20 } from "../../target/types/cat_sol20";
+import { CatSol721 } from "../../target/types/cat_sol721";
 import { TOKEN_METADATA_PROGRAM_ID } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import {
@@ -56,9 +56,9 @@ describe("cat_sol20", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(provider);
 
-  let program: Program<CatSol20>;
+  let program: Program<CatSol721> = anchor.workspace.CatSol721 as Program<CatSol721>;
 
-  let SPL_CAT_PID: PublicKey;
+  let SPL_CAT_PID: PublicKey = program.programId;
 
 
   const CORE_BRIDGE_PID = "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o";
@@ -68,48 +68,22 @@ describe("cat_sol20", () => {
 
   // The new owner of the token mint
   const newOwner = anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('/home/ace/.config/solana/id2.json').toString())));
+  
+  // The new owner of the token mint
+  const creator = anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('/home/ace/.config/solana/creator.json').toString())));
 
   // The Token Mint we will use for testing
-  let tokenMintPDA;
+  let tokenMintPDA = PublicKey.findProgramAddressSync([Buffer.from("spl_cat_nft")], SPL_CAT_PID)[0];
 
   // The Token Metadata PDA
-  let tokenMetadataPDA;
+  let tokenMetadataPDA = PublicKey.findProgramAddressSync([Buffer.from("metadata"), TOKEN_METADATA_PROGRAM_ID.toBuffer(), tokenMintPDA.toBuffer()], TOKEN_METADATA_PROGRAM_ID)[0];
+
 
   // The Bridge out VAA will be saved here and used for Bridge In
   let VAA: any = null;
 
   before(async () => {
-    try {
-
-      console.log("Deploying program...");
-      await deployProgram().then((stdout) => {
-        console.log(stdout);
-      });
-
-      // Get the RPC URL for the local cluster.
-      const rpc = (provider.connection.rpcEndpoint).toString();
-      console.log("RPC: ", rpc);
-
-      // Get the IDL
-      const IDL = JSON.parse(fs.readFileSync("./target/idl/cat_sol20.json").toString());
-
-      // Get Program ID
-      SPL_CAT_PID = new anchor.web3.PublicKey(anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('./target/deploy/cat_sol20-keypair.json').toString()))).publicKey);
-
-      // Generate the program client from IDL.
-      program = program = new anchor.Program(
-        IDL,
-        SPL_CAT_PID,
-        new anchor.AnchorProvider(
-          new anchor.web3.Connection(rpc),
-          new anchor.Wallet(KEYPAIR),
-          {}));
-
-      console.log("Program: ", program.programId.toString());
-
-      tokenMintPDA = PublicKey.findProgramAddressSync([Buffer.from("spl_cat_token")], SPL_CAT_PID)[0];
-      tokenMetadataPDA = PublicKey.findProgramAddressSync([Buffer.from("metadata"), TOKEN_METADATA_PROGRAM_ID.toBuffer(), tokenMintPDA.toBuffer()], TOKEN_METADATA_PROGRAM_ID)[0];
-
+    try {      
       const tx = await provider.connection.requestAirdrop(newOwner.publicKey, 10 * LAMPORTS_PER_SOL);
       console.log("Fund AirDrop Transaction: ", tx);
     } catch (e: any) {
@@ -117,7 +91,7 @@ describe("cat_sol20", () => {
     }
   });
 
-
+  
   describe("Initialization and Minting", () => {
     it("Can Initialize and Create a Mint", async () => {
       try {

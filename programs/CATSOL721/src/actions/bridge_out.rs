@@ -160,7 +160,7 @@ impl BridgeOut<'_> {
             .ok_or(ErrorFactory::BumpNotFound)?;
 
         let cpi_signer_seeds = &[
-            b"spl_cat_token".as_ref(),
+            b"spl_cat_nft".as_ref(),
             &[bump],
         ];
         let cpi_signer = &[&cpi_signer_seeds[..]];
