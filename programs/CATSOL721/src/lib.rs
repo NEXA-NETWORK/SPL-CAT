@@ -15,10 +15,7 @@ pub use state::*;
 pub mod constants;
 pub use constants::*;
 
-pub mod utils;
-pub use utils::*;
-
-declare_id!("6fi6yXzAnknteN94jJ9iZWjpMBSxp1NdADrqApgW7dV6");
+declare_id!("CknPdA3Ete1m1RuNSKgeSekBaZDd9m9gC8wQU88U5VB4");
 
 #[program]
 pub mod cat_sol721 {
@@ -32,8 +29,8 @@ pub mod cat_sol721 {
         CreateCollection::create_collection(ctx, &params)
     }
 
-    pub fn mint_tokens(ctx: Context<MintTokens>, amount: u64) -> Result<()> {
-        MintTokens::mint_tokens(ctx, amount)
+    pub fn mint_nft(ctx: Context<MintNFT>, params: MintParams) -> Result<()> {
+        MintNFT::mint_nft(ctx, &params)
     }
 
     pub fn transfer_ownership(ctx: Context<TransferOwnership>) -> Result<()> {

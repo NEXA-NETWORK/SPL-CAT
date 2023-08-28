@@ -2,7 +2,7 @@
 seeds = false
 skip-lint = false
 [programs.localnet]
-cat_sol721 = "6fi6yXzAnknteN94jJ9iZWjpMBSxp1NdADrqApgW7dV6"
+cat_sol721 = "CknPdA3Ete1m1RuNSKgeSekBaZDd9m9gC8wQU88U5VB4"
 
 [registry]
 url = "https://api.apr.dev"
