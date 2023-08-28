@@ -3,12 +3,12 @@ use std::io::{self, Read, Write};
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct CrossChainStruct {
-    pub amount: U256,
     pub token_address: [u8; 32],
     pub token_chain: u16,
+    pub token_id: U256,
+    pub uri: String,
     pub to_address: [u8; 32],
     pub to_chain: u16,
-    pub token_decimals: u8,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug)]
@@ -43,12 +43,12 @@ impl AnchorSerialize for CATSOLStructs {
         match self {
             CATSOLStructs::Alive { program_id } => program_id.serialize(writer),
             CATSOLStructs::CrossChainPayload { payload } => {
-                payload.amount.serialize(writer)?;
                 writer.write_all(&payload.token_address)?;
                 writer.write_all(&payload.token_chain.to_be_bytes())?;
+                payload.token_id.serialize(writer)?;
+                writer.write_all(&payload.uri.as_bytes())?;
                 writer.write_all(&payload.to_address)?;
                 writer.write_all(&payload.to_chain.to_be_bytes())?;
-                writer.write_all(&payload.token_decimals.to_le_bytes())?;
                 Ok(())
             }
         }
@@ -64,12 +64,6 @@ impl AnchorDeserialize for CATSOLStructs {
             Ok(CATSOLStructs::Alive { program_id })
         } else {
             // Assume this is a CrossChainPayload variant otherwise
-            let mut amount_bytes = [0u8; 32];
-            bytes.read_exact(&mut amount_bytes)?;
-            let amount = U256 {
-                bytes: amount_bytes,
-            };
-
             let mut token_address = [0u8; 32];
             bytes.read_exact(&mut token_address)?;
 
@@ -77,6 +71,16 @@ impl AnchorDeserialize for CATSOLStructs {
             bytes.read_exact(&mut token_chain_bytes)?;
             let token_chain = u16::from_be_bytes(token_chain_bytes);
 
+            let mut token_id_bytes = [0u8; 32];
+            bytes.read_exact(&mut token_id_bytes)?;
+            let token_id = U256 {
+                bytes: token_id_bytes,
+            };
+
+            let mut uri_bytes = [0u8; 32];
+            bytes.read_exact(&mut uri_bytes)?;
+            let uri = String::from_utf8(uri_bytes.to_vec()).unwrap();
+            
             let mut to_address = [0u8; 32];
             bytes.read_exact(&mut to_address)?;
 
@@ -84,17 +88,13 @@ impl AnchorDeserialize for CATSOLStructs {
             bytes.read_exact(&mut to_chain_bytes)?;
             let to_chain = u16::from_be_bytes(to_chain_bytes);
 
-            let mut token_decimals_bytes = [0u8; 1];
-            bytes.read_exact(&mut token_decimals_bytes)?;
-            let token_decimals = u8::from_le_bytes(token_decimals_bytes);
-
             let payload = CrossChainStruct {
-                amount,
                 token_address,
                 token_chain,
+                token_id,
+                uri,
                 to_address,
                 to_chain,
-                token_decimals,
             };
             Ok(CATSOLStructs::CrossChainPayload { payload })
         }
