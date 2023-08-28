@@ -1,21 +1,23 @@
 use anchor_lang::prelude::*;
-use wormhole_anchor_sdk::wormhole;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{burn, Burn, Mint,Token, TokenAccount},
+    metadata::{burn_nft, BurnNft, Metadata},
+    token::{Mint, Token, TokenAccount},
+};
+use wormhole_anchor_sdk::wormhole;
 
-};
 use crate::{
-    constants::*,
-    utils_cat::*,
-    error::ErrorFactory,
     cat_struct::{CATSOLStructs, CrossChainStruct, U256},
-    state::{Config, ForeignEmitter, WormholeEmitter}
+    constants::*,
+    error::ErrorFactory,
+    state::{Config, ForeignEmitter, WormholeEmitter},
 };
+
+use mpl_token_metadata::pda::{find_master_edition_account, find_metadata_account};
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct BridgeOutParams {
-    pub amount: u64,
+    pub token_id: u64,
     pub recipient_chain: u16,
     pub recipient: [u8; 32],
 }
@@ -26,34 +28,57 @@ pub struct BridgeOut<'info> {
     /// Owner will pay Wormhole fee to post a message and pay for the associated token account.
     pub owner: Signer<'info>,
 
-    /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
-    /// CHECK: This is the authority of the ATA
     #[account(mut)]
-    pub ata_authority: UncheckedAccount<'info>,
+    pub user: Signer<'info>,
 
-    /// Token Mint. The token that is bridged in.
     #[account(
-        mut, 
-        seeds = [SEED_PREFIX_MINT],
-        bump
+        seeds = [SEED_PREFIX_COLLECTION],
+        bump,
     )]
-    pub token_mint: Account<'info, Mint>,
+    pub collection_mint: Account<'info, Mint>,
 
-    // Token Account. Its an Associated Token Account that will hold the
-    // tokens that are bridged in.
+    /// CHECK:
+    #[account(
+        address=find_metadata_account(&collection_mint.key()).0
+    )]
+    pub collection_metadata_account: UncheckedAccount<'info>,
+
+
     #[account(
         mut,
-        associated_token::mint = token_mint,
-        associated_token::authority = ata_authority,
+        mint::authority = collection_mint,
+        mint::freeze_authority = collection_mint
     )]
-    pub token_user_ata: Account<'info, TokenAccount>,
+    pub nft_mint: Account<'info, Mint>,
+
+    /// CHECK:
+    #[account(
+        mut,
+        address=find_metadata_account(&nft_mint.key()).0
+    )]
+    pub metadata_account: UncheckedAccount<'info>,
+
+    /// CHECK:
+    #[account(
+        mut,
+        address=find_master_edition_account(&nft_mint.key()).0
+    )]
+    pub master_edition: UncheckedAccount<'info>,
+
+    #[account(
+        mut,
+        associated_token::mint = nft_mint,
+        associated_token::authority = owner
+    )]
+    pub token_account: Account<'info, TokenAccount>,
 
     // Solana SPL Token Program
     pub token_program: Program<'info, Token>,
+
     // Associated Token Program
     pub associated_token_program: Program<'info, AssociatedToken>,
 
-    // --------------------- Wormhole ---------------------
+    pub metadata_program: Program<'info, Metadata>,
 
     #[account(
         mut,
@@ -133,7 +158,7 @@ pub struct BridgeOut<'info> {
 }
 
 impl BridgeOut<'_> {
-    pub fn bridge_out(ctx: Context<BridgeOut>, params: BridgeOutParams ) -> Result<()> {
+    pub fn bridge_out(ctx: Context<BridgeOut>, params: BridgeOutParams) -> Result<()> {
         // Pay the Fee
         let fee = ctx.accounts.wormhole_bridge.fee();
         if fee > 0 {
@@ -145,42 +170,50 @@ impl BridgeOut<'_> {
                 ),
                 &ctx.accounts.to_account_infos(),
             )?;
-        }
+        }   
 
-        // Burn the tokens
-        let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_accounts = Burn {
-            mint: ctx.accounts.token_mint.to_account_info(),
-            from: ctx.accounts.token_user_ata.to_account_info(),
-            authority: ctx.accounts.owner.to_account_info(),
-        };
+
+        // Need a check here to see if the passed Metadata account has the same URI as the one in the collection
+        // Require Check
+        // Get Metadata account URI and check if the token_id is same.
+
+
+
+        // PDA Seed for Signing
         let bump = *ctx
             .bumps
-            .get("token_mint")
+            .get("collection_mint")
             .ok_or(ErrorFactory::BumpNotFound)?;
 
-        let cpi_signer_seeds = &[
-            b"spl_cat_nft".as_ref(),
-            &[bump],
-        ];
-        let cpi_signer = &[&cpi_signer_seeds[..]];
-        
-        let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
+        let signer_seeds: &[&[&[u8]]] = &[&[SEED_PREFIX_COLLECTION, &[bump]]];
 
-        burn(cpi_ctx, params.amount)?;
+        // burn nft in collection
+        burn_nft(
+            CpiContext::new_with_signer(
+                ctx.accounts.metadata_program.to_account_info(),
+                BurnNft {
+                    metadata: ctx.accounts.metadata_account.to_account_info(),
+                    owner: ctx.accounts.user.to_account_info(),
+                    mint: ctx.accounts.nft_mint.to_account_info(),
+                    token: ctx.accounts.token_account.to_account_info(),
+                    edition: ctx.accounts.master_edition.to_account_info(),
+                    spl_token: ctx.accounts.token_program.to_account_info(),
+                },
+                signer_seeds,
+            ),
+            Some(ctx.accounts.collection_metadata_account.key()),
+        )?;
 
-        // Normalize the amount to a Standard 8 decimals
-        let decimals = ctx.accounts.token_mint.decimals;
-        let foreign_amount = normalize_amount(params.amount, decimals);
+        let nft_uri: String = ctx.accounts.config.base_uri.clone() + &params.token_id.to_string();
 
         // Create the payload
         let payload = CrossChainStruct {
-            amount: U256::from(foreign_amount),
-            token_address: ctx.accounts.token_user_ata.key().to_bytes(),
+            token_address: ctx.accounts.user.key().to_bytes(),
             token_chain: wormhole::CHAIN_ID_SOLANA,
+            token_id: U256::from(params.token_id),
+            uri: nft_uri,
             to_address: params.recipient,
             to_chain: params.recipient_chain,
-            token_decimals: ctx.accounts.token_mint.decimals,
         };
 
         // Serialize the payload
