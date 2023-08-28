@@ -37,6 +37,8 @@ pub struct Config {
     pub minted_supply: u64,
     /// Max supply.
     pub max_supply: u64,
+    /// Base URI.
+    pub base_uri: String,
 }
 
 impl Config {
@@ -47,6 +49,8 @@ impl Config {
         + 1 // finality
         + 8 // minted_supply
         + 8 // max_supply
+        + 1 // base_uri length
+        + 256 // base_uri
         
     ;
     /// AKA `b"config"`.

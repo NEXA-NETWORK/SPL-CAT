@@ -4,8 +4,8 @@ pub use initialize::*;
 pub mod create_collection;
 pub use create_collection::*;
 
-pub mod mint_tokens;
-pub use mint_tokens::*;
+pub mod mint_nft;
+pub use mint_nft::*;
 
 pub mod transfer_ownership;
 pub use transfer_ownership::*;
