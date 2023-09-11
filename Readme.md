@@ -2,6 +2,41 @@
 
 # SPL-CAT
 
+## **Environment Setup**
+
+First of all make sure that the `Cargo.lock` file exists in the project directory. Do not change it or build it from scratch. The `Cargo.lock` file is used to lock the versions of the dependencies. If you build it from scratch, you may get errors due to incompatible versions of the dependencies.
+
+1. Install Rust
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+2. Install Solana CLI
+
+```bash
+sh -c "$(curl -sSfL https://release.solana.com/v1.14.18/install)"
+```
+
+3. Install AVM CLI
+
+```bash
+cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+```
+
+On Linux systems you may need to install additional dependencies if cargo install fails. E.g. on Ubuntu:
+
+```bash
+sudo apt-get update && sudo apt-get upgrade && sudo apt-get install -y pkg-config build-essential libudev-dev libssl-dev
+```
+
+4. Install Anchor
+  
+```bash
+avm install 0.28.0
+avm use 0.28.0
+```
+
 ## **Introduction**
 
 This is a Solana smart contract for a token bridge application named **`CATSOL`**. The purpose of the contract is to mint and transfer tokens across different blockchains using the Wormhole bridge protocol. The contract is written in Rust and uses the Anchor framework.
