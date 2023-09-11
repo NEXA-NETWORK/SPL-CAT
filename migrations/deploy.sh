@@ -16,4 +16,4 @@ anchor keys sync
 anchor build
 
 # Deploy the project
-anchor deploy --program-name cat_sol20
+anchor deploy --program-name $1 --provider.cluster $2 --provider.wallet $3

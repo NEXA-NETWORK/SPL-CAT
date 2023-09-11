@@ -32,23 +32,25 @@ import fs from "fs";
 import { exec } from 'child_process';
 import path from 'path';
 
-function deployProgram() {
+function deployProgram(programName: string, cluster: string, wallet: string) {
   const scriptPath = path.resolve(process.cwd(), 'migrations/deploy.sh');
+  const cmd = `${scriptPath} ${programName} ${cluster} ${wallet}`;
 
   return new Promise((resolve, reject) => {
-    exec(scriptPath, (error, stdout, stderr) => {
+    exec(cmd, (error, stdout, stderr) => {
       if (error) {
         console.error(`An error occurred: ${error}`);
         reject(error);
         return;
       }
       console.log(`STDOUT: ${stdout}`);
-      console.error(`STDERR: ${stderr}`);
+      if (stderr) {
+        console.error(`STDERR: ${stderr}`);
+      }
       resolve(stdout);
     });
   });
 }
-
 
 
 describe("cat_sol20", () => {
@@ -82,7 +84,7 @@ describe("cat_sol20", () => {
     try {
 
       console.log("Deploying program...");
-      await deployProgram().then((stdout) => {
+      await deployProgram("cat_sol20", "Localnet", "/home/ace/.config/solana/id.json").then((stdout) => {
         console.log(stdout);
       });
 

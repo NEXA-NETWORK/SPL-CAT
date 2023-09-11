@@ -29,4 +29,3 @@ mpl-token-metadata = { version = "1.12.0",  features = ["no-entrypoint"] }
 anchor-spl = { git = "https://github.com/hmzakhalid/anchor", features=["metadata"] }
 anchor-lang = { git = "https://github.com/hmzakhalid/anchor", features =["init-if-needed"]}
 wormhole-anchor-sdk = { path = "../../modules/wormhole-anchor-sdk", features=["tilt-devnet"] }
-
