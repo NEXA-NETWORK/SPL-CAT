@@ -53,7 +53,7 @@ impl MintTokens<'_> {
         let config = &mut ctx.accounts.config;
 
         // Check if the amount doesn't exceed the max supply
-        if amount + config.minted_supply >= config.max_supply {
+        if amount + config.minted_supply > config.max_supply {
             return Err(ErrorFactory::InvalidMintAmount.into());
         }
 
