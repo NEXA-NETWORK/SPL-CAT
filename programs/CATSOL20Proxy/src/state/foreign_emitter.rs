@@ -24,3 +24,22 @@ impl ForeignEmitter {
         *address == self.address
     }
 }
+
+#[derive(Default)]
+/// Foreign emitters collection data.
+pub struct ForeignEmitterCollection {
+    /// Collection of foreign emitters.
+    pub emitters: Vec<ForeignEmitter>,
+}
+
+impl ForeignEmitterCollection {
+    /// Convenience method to add a new foreign emitter.
+    pub fn add_emitter(&mut self, emitter: ForeignEmitter) {
+        self.emitters.push(emitter);
+    }
+    
+    /// Convenience method to verify if an address is within the collection.
+    pub fn verify(&self, address: &[u8; 32]) -> bool {
+        self.emitters.iter().any(|emitter| emitter.verify(address))
+    }
+}

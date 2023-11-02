@@ -1,12 +1,12 @@
 [package]
-name = "cat_sol20"
+name = "test_token"
 version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "cat_sol20"
+name = "test_token"
 
 [features]
 no-entrypoint = []
@@ -25,7 +25,8 @@ toml_datetime="=0.6.1"
 solana-program = "=1.14.17"
 getrandom = { version = "0.2.9", features = ["custom"] }
 serde = { version = "1.0.164", features = ["derive"] }
-mpl-token-metadata = { version = "1.13.0",  features = ["no-entrypoint"] }
+mpl-token-metadata = { version = "1.12.0",  features = ["no-entrypoint"] }
 anchor-spl = { git = "https://github.com/hmzakhalid/anchor", features=["metadata"] }
 anchor-lang = { git = "https://github.com/hmzakhalid/anchor", features =["init-if-needed"]}
 wormhole-anchor-sdk = { path = "../../modules/wormhole-anchor-sdk", features=["tilt-devnet"] }
+

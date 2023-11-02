@@ -1,17 +1,16 @@
+use crate::{
+    cat_struct::{CATSOLStructs, CrossChainStruct, U256},
+    constants::*,
+    error::ErrorFactory,
+    state::{Config, ForeignEmitter, WormholeEmitter},
+    utils_cat::*,
+};
 use anchor_lang::prelude::*;
-use wormhole_anchor_sdk::wormhole;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token::{burn, Burn, Mint,Token, TokenAccount},
-
+    token::{transfer, Mint, Token, TokenAccount, Transfer},
 };
-use crate::{
-    constants::*,
-    utils_cat::*,
-    error::ErrorFactory,
-    cat_struct::{CATSOLStructs, CrossChainStruct, U256},
-    state::{Config, ForeignEmitter, WormholeEmitter}
-};
+use wormhole_anchor_sdk::wormhole;
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct BridgeOutParams {
@@ -26,27 +25,24 @@ pub struct BridgeOut<'info> {
     /// Owner will pay Wormhole fee to post a message and pay for the associated token account.
     pub owner: Signer<'info>,
 
-    /// ATA Authority. The authority of the ATA that will hold the bridged tokens.
-    /// CHECK: This is the authority of the ATA
+    /// Token Mint. The token that is Will be bridged out
     #[account(mut)]
-    pub ata_authority: UncheckedAccount<'info>,
-
-    /// Token Mint. The token that is bridged in.
-    #[account(
-        mut, 
-        seeds = [SEED_PREFIX_MINT],
-        bump
-    )]
-    pub token_mint: Account<'info, Mint>,
+    pub token_mint: Box<Account<'info, Mint>>,
 
     // Token Account. Its an Associated Token Account that will hold the
-    // tokens that are bridged in.
+    // tokens that are bridged out
+    #[account(mut)]
+    pub token_user_ata: Box<Account<'info, TokenAccount>>,
+
+    // Token Mint ATA. Its an Associated Token Account owned by the Program that will hold the locked tokens
     #[account(
         mut,
-        associated_token::mint = token_mint,
-        associated_token::authority = ata_authority,
+        seeds = [SEED_PREFIX_LOCK, token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = token_mint_ata,
     )]
-    pub token_user_ata: Account<'info, TokenAccount>,
+    pub token_mint_ata: Account<'info, TokenAccount>,
 
     // Solana SPL Token Program
     pub token_program: Program<'info, Token>,
@@ -57,6 +53,7 @@ pub struct BridgeOut<'info> {
         mut,
         seeds = [Config::SEED_PREFIX],
         bump,
+        constraint = config.native_token == token_mint.key()
     )]
     /// Config account. Wormhole PDAs specified in the config are checked
     /// against the Wormhole accounts in this context. Read-only.
@@ -131,7 +128,7 @@ pub struct BridgeOut<'info> {
 }
 
 impl BridgeOut<'_> {
-    pub fn bridge_out(ctx: Context<BridgeOut>, params: BridgeOutParams ) -> Result<()> {
+    pub fn bridge_out(ctx: Context<BridgeOut>, params: &BridgeOutParams) -> Result<()> {
         // Pay the Fee
         let fee = ctx.accounts.wormhole_bridge.fee();
         if fee > 0 {
@@ -145,31 +142,37 @@ impl BridgeOut<'_> {
             )?;
         }
 
-        // Burn the tokens
+        // Transfer the tokens
         let cpi_program = ctx.accounts.token_program.to_account_info();
-        let cpi_accounts = Burn {
-            mint: ctx.accounts.token_mint.to_account_info(),
+        let cpi_accounts = Transfer {
             from: ctx.accounts.token_user_ata.to_account_info(),
-            authority: ctx.accounts.owner.to_account_info(),
+            to: ctx.accounts.token_mint_ata.to_account_info(),
+            authority: ctx.accounts.token_mint_ata.to_account_info(),
         };
         let bump = *ctx
             .bumps
-            .get("token_mint")
+            .get("token_mint_ata")
             .ok_or(ErrorFactory::BumpNotFound)?;
 
         let cpi_signer_seeds = &[
-            b"spl_cat_token".as_ref(),
+            b"cat_sol_proxy".as_ref(),
+            &ctx.accounts.token_mint.key().to_bytes(),
             &[bump],
         ];
         let cpi_signer = &[&cpi_signer_seeds[..]];
-        
         let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
 
-        burn(cpi_ctx, params.amount)?;
+        let balance_before = ctx.accounts.token_mint_ata.amount;
+
+        transfer(cpi_ctx, params.amount)?;
+
+        // Reload the account to get the updated balance
+        ctx.accounts.token_mint_ata.reload()?;
+        let amount_transferred = ctx.accounts.token_mint_ata.amount - balance_before;
 
         // Normalize the amount to a Standard 8 decimals
         let decimals = ctx.accounts.token_mint.decimals;
-        let foreign_amount = normalize_amount(params.amount, decimals);
+        let foreign_amount = normalize_amount(amount_transferred, decimals);
 
         // Create the payload
         let payload = CrossChainStruct {

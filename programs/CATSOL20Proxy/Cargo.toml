@@ -1,12 +1,12 @@
 [package]
-name = "cat_sol20"
+name = "cat_sol20_proxy"
 version = "0.1.0"
 description = "Created with Anchor"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "cat_sol20"
+name = "cat_sol20_proxy"
 
 [features]
 no-entrypoint = []
@@ -29,3 +29,4 @@ mpl-token-metadata = { version = "1.13.0",  features = ["no-entrypoint"] }
 anchor-spl = { git = "https://github.com/hmzakhalid/anchor", features=["metadata"] }
 anchor-lang = { git = "https://github.com/hmzakhalid/anchor", features =["init-if-needed"]}
 wormhole-anchor-sdk = { path = "../../modules/wormhole-anchor-sdk", features=["tilt-devnet"] }
+

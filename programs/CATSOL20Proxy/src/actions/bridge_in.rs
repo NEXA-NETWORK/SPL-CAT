@@ -2,7 +2,7 @@ use anchor_lang::prelude::*;
 use wormhole_anchor_sdk::wormhole;
 use anchor_spl::{
     associated_token::{self, AssociatedToken},
-    token::{mint_to, MintTo, Mint, Token, TokenAccount},
+    token::{transfer, Transfer, Mint, Token, TokenAccount},
 };
 
 use crate::{
@@ -21,27 +21,24 @@ pub struct BridgeIn<'info> {
     #[account(mut)]
     pub owner: Signer<'info>,
 
-    /// CHECK: ATA Authority. The authority of the ATA that will hold the bridged tokens.
+    /// Token Mint. The token that is Will be bridged out
     #[account(mut)]
-    pub ata_authority: UncheckedAccount<'info>,
-
-    /// Token Mint. The token that is bridged in.
-    #[account(
-        mut, 
-        seeds = [SEED_PREFIX_MINT],
-        bump
-    )]
-    pub token_mint: Account<'info, Mint>,
+    pub token_mint: Box<Account<'info, Mint>>,
 
     // Token Account. Its an Associated Token Account that will hold the
-    // tokens that are bridged in.
-    #[account(
-        init_if_needed,
-        payer = owner,
-        associated_token::mint = token_mint,
-        associated_token::authority = ata_authority,
-    )]
+    // tokens that are bridged out
+    #[account(mut)]
     pub token_user_ata: Account<'info, TokenAccount>,
+
+    // Token Mint ATA. Its an Associated Token Account owned by the Program that will hold the locked tokens
+    #[account(
+        mut,
+        seeds = [SEED_PREFIX_LOCK, token_mint.key().as_ref()],
+        bump,
+        token::mint = token_mint,
+        token::authority = token_mint_ata,
+    )]
+    pub token_mint_ata: Account<'info, TokenAccount>,
 
     // Solana SPL Token Program
     pub token_program: Program<'info, Token>,
@@ -83,6 +80,10 @@ pub struct BridgeIn<'info> {
         bump,
         space = Received::MAXIMUM_SIZE
     )]
+    /// Received account. [`receive_message`](crate::receive_message) will
+    /// deserialize the Wormhole message's payload and save it to this account.
+    /// This account cannot be overwritten, and will prevent Wormhole message
+    /// replay with the same sequence.
     pub received: Account<'info, Received>,
 
     #[account(
@@ -132,27 +133,30 @@ impl BridgeIn<'_> {
 
             // Mint the tokens
             let cpi_program = ctx.accounts.token_program.to_account_info();
-            let cpi_accounts = MintTo {
-                mint: ctx.accounts.token_mint.to_account_info(),
+            let cpi_accounts = Transfer {
+                from: ctx.accounts.token_mint_ata.to_account_info(),
                 to: ctx.accounts.token_user_ata.to_account_info(),
-                authority: ctx.accounts.owner.to_account_info(),
+                authority: ctx.accounts.token_mint_ata.to_account_info(),
             };
+
             let bump = *ctx
                 .bumps
-                .get("token_mint")
+                .get("token_mint_ata")
                 .ok_or(ErrorFactory::BumpNotFound)?;
 
             let cpi_signer_seeds = &[
-                b"spl_cat_token".as_ref(),
+                b"cat_sol_proxy".as_ref(),
+                &ctx.accounts.token_mint.key().to_bytes(),
                 &[bump],
             ];
+
             let cpi_signer = &[&cpi_signer_seeds[..]];
 
             let cpi_ctx = CpiContext::new_with_signer(cpi_program, cpi_accounts, cpi_signer);
 
-            mint_to(cpi_ctx, normalized_amount)?;
+            transfer(cpi_ctx, normalized_amount)?;
 
-            //Save batch ID, keccak256 hash and message payload.
+            //Save keccak256 hash.
             let received = &mut ctx.accounts.received;
             received.wormhole_message_hash = vaa_hash;
 

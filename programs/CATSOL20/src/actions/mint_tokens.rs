@@ -24,7 +24,7 @@ pub struct MintTokens<'info> {
 
     /// CHECK: This is the authority of the ATA
     #[account(mut)]
-    pub ata_authority: AccountInfo<'info>,
+    pub ata_authority: UncheckedAccount<'info>,
 
     #[account(
         mut, 

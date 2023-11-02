@@ -1,32 +1,18 @@
 use anchor_lang::prelude::*;
-use wormhole_anchor_sdk::wormhole;
 use anchor_spl::{
-    token::{Mint, Token},
-    metadata::Metadata,
+    associated_token::AssociatedToken,
+    token::{Mint, Token, TokenAccount},
 };
+use wormhole_anchor_sdk::wormhole;
 
 use crate::{
+    cat_struct::CATSOLStructs,
     constants::*,
     error::ErrorFactory,
-    cat_struct::CATSOLStructs,
-    state::{Config, WormholeEmitter}
+    state::{Config, WormholeEmitter},
 };
 
-use anchor_lang::solana_program::{self, program::invoke_signed};
-use mpl_token_metadata::instruction::create_metadata_accounts_v3;
-
-#[derive(Clone, AnchorSerialize, AnchorDeserialize)]
-pub struct InitializeParams {
-    pub decimals: u8,
-    pub max_supply: u64,
-    pub name: String,
-    pub symbol: String,
-    pub uri: String,
-}
-
 #[derive(Accounts)]
-#[instruction(params: InitializeParams)]
-/// Context used to initialize program data (i.e. config).
 pub struct Initialize<'info> {
     /// Owner will initialize an account that tracks his own payloads
     #[account(mut)]
@@ -34,48 +20,37 @@ pub struct Initialize<'info> {
 
     // Config Account is used to store the native token on initialization
     // The owner of the config account is basically the owner of the program
-    // They can add foreign emitters and mint tokens
+    // They can add foreign emitters
     #[account(
         init,
         payer = owner,
         seeds = [Config::SEED_PREFIX],
         bump,
         space = Config::MAXIMUM_SIZE,
-
     )]
     pub config: Box<Account<'info, Config>>,
 
-
     /// Token Mint Account. The token that is Will be bridged out
+    /// Read-only
+    pub token_mint: Box<Account<'info, Mint>>,
+
+    /// Token Account. Its an Associated Token Account that will hold the
+    /// tokens that are bridged out. It is owned by the program.
+    /// Locked tokens will be transferred to this account
     #[account(
-        init, 
-        seeds = [SEED_PREFIX_MINT],
+        init,
+        seeds = [SEED_PREFIX_LOCK, token_mint.key().as_ref()],
         bump,
         payer = owner,
-        mint::decimals = params.decimals,
-        mint::authority = token_mint.key(),
+        token::mint = token_mint,
+        token::authority = token_mint_ata,
     )]
-    pub token_mint: Account<'info, Mint>,
+    pub token_mint_ata: Account<'info, TokenAccount>,
 
-    /// CHECK: Metadata account for the token.
-    /// Stores the token's name, symbol, logo, and other metadata.
-    #[account(
-        mut,
-        seeds = [
-            b"metadata",
-            mpl_token_metadata::id().as_ref(),
-            token_mint.key().as_ref(),
-        ],
-        bump,
-        seeds::program = mpl_token_metadata::id()  
-    )]
-    pub metadata_account: UncheckedAccount<'info>,
-
-    /// Token Program.
+    /// Solana SPL Token Program
     pub token_program: Program<'info, Token>,
-
-    /// Metadata program.
-    pub metadata_program: Program<'info, Metadata>,
+    /// Associated Token Program
+    pub associated_token_program: Program<'info, AssociatedToken>,
 
     /// Wormhole program.
     pub wormhole_program: Program<'info, wormhole::program::Wormhole>,
@@ -151,20 +126,15 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
-
 impl Initialize<'_> {
-    pub fn initialize(
-        ctx: Context<Initialize>,
-        params: &InitializeParams,
-    ) -> Result<()> {
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
         let config = &mut ctx.accounts.config;
 
         // Set the owner of the config (effectively the owner of the program).
         config.owner = ctx.accounts.owner.key();
 
-        // Set the Max and Minted Supply
-        config.max_supply = params.max_supply;
-        config.minted_supply = ctx.accounts.token_mint.supply;
+        // Set the token mint.
+        config.native_token = ctx.accounts.token_mint.key();
 
         // Set Wormhole related addresses.
         {
@@ -191,52 +161,6 @@ impl Initialize<'_> {
         // so this value is stored as u8.
         config.finality = wormhole::Finality::Confirmed as u8;
 
-
-        // Create Metadata for the tokens.
-        {
-            let create_metadata_account_ix = create_metadata_accounts_v3(
-                ctx.accounts.metadata_program.key(),
-                ctx.accounts.metadata_account.key(),
-                ctx.accounts.token_mint.key(),
-                ctx.accounts.token_mint.key(),
-                ctx.accounts.owner.key(),
-                ctx.accounts.token_mint.key(),
-                params.name.clone(),
-                params.symbol.clone(),
-                params.uri.clone(),
-                None,
-                0,
-                true,
-                true,
-                None,
-                None,
-                None,
-            );
-
-            let bump = *ctx
-            .bumps
-            .get("token_mint")
-            .ok_or(ErrorFactory::BumpNotFound)?;
-
-            let metadata_signer_seeds = &[
-                b"spl_cat_token".as_ref(),
-                &[bump],
-            ];
-
-
-            invoke_signed(
-                &create_metadata_account_ix,
-                &[
-                    ctx.accounts.owner.to_account_info(),
-                    ctx.accounts.metadata_account.to_account_info(),
-                    ctx.accounts.token_mint.to_account_info(),
-                    ctx.accounts.metadata_program.to_account_info(),
-                    ctx.accounts.system_program.to_account_info(),
-                ],
-                &[metadata_signer_seeds],
-            )?;
-        }
-
         // Storing the BumpSeed for the Wormhole Emitter
         ctx.accounts.wormhole_emitter.bump = *ctx
             .bumps
@@ -258,6 +182,7 @@ impl Initialize<'_> {
                     &ctx.accounts.to_account_infos(),
                 )?;
             }
+
             let wormhole_emitter = &ctx.accounts.wormhole_emitter;
             let config = &ctx.accounts.config;
 
@@ -305,4 +230,3 @@ impl Initialize<'_> {
         Ok(())
     }
 }
-       
