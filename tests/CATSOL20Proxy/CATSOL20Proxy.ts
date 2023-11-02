@@ -80,7 +80,7 @@ describe("cat_sol20_proxy", () => {
   it("TEST TOKEN: Initialize & Mint", async () => {
     try {
 
-      const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+      const [configAcc, _] = PublicKey.findProgramAddressSync([
         Buffer.from("config")
       ], TEST_SPL_PID);
 
@@ -106,7 +106,7 @@ describe("cat_sol20_proxy", () => {
 
   it("Can Initialize and Create a Mint", async () => {
     try {
-      const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+      const [configAcc, _] = PublicKey.findProgramAddressSync([
         Buffer.from("config")
       ], SPL_CAT_PROXY_PID);
 
@@ -164,7 +164,7 @@ describe("cat_sol20_proxy", () => {
       console.log("Target Emitter Address: ", targetEmitterAddress);
       targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
 
-      const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+      const [configAcc, _] = PublicKey.findProgramAddressSync([
         Buffer.from("config")
       ], SPL_CAT_PROXY_PID);
 
@@ -199,7 +199,7 @@ describe("cat_sol20_proxy", () => {
         foreignChainId,
       ], SPL_CAT_PROXY_PID);
 
-      const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+      const [configAcc, _] = PublicKey.findProgramAddressSync([
         Buffer.from("config")
       ], SPL_CAT_PROXY_PID);
 
@@ -333,20 +333,20 @@ describe("cat_sol20_proxy", () => {
         ], SPL_CAT_PROXY_PID)[0];
 
 
-      const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+      const [configAcc, _] = PublicKey.findProgramAddressSync([
         Buffer.from("config")
       ], SPL_CAT_PROXY_PID);
 
       const tokenUserATA = getAssociatedTokenAddressSync(
         testTokenMintPDA,
-        payload.toAddress,
+        payload.destUserAddress,
       );
 
 
       const tokenMintATA = PublicKey.findProgramAddressSync([LOCK_PDA_SEED, testTokenMintPDA.toBuffer()], SPL_CAT_PROXY_PID)[0];
 
       const foreignChainId = Buffer.alloc(2);
-      foreignChainId.writeUInt16LE(payload.tokenChain);
+      foreignChainId.writeUInt16LE(payload.sourceTokenChain);
 
       const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("foreign_emitter"),
@@ -376,19 +376,25 @@ describe("cat_sol20_proxy", () => {
 
 
 function getParsedPayload(vaa: Buffer) {
-  let amount = vaa.subarray(0, 32);
-  let tokenAddress = vaa.subarray(32, 64);
-  let tokenChain = vaa.subarray(64, 66);
-  let toAddress = vaa.subarray(66, 98);
-  let toChain = vaa.subarray(98, 100);
-  let tokenDecimals = vaa.subarray(100, 101);
+  let offset = 0;
+
+  const amount = vaa.subarray(offset, offset += 32);
+  const tokenDecimals = vaa.subarray(offset, offset += 1);
+  const sourceTokenAddress = vaa.subarray(offset, offset += 32);
+  const sourceUserAddress = vaa.subarray(offset, offset += 32);
+  const sourceTokenChain = vaa.subarray(offset, offset += 2);
+  const destTokenAddress = vaa.subarray(offset, offset += 32);
+  const destUserAddress = vaa.subarray(offset, offset += 32);
+  const destTokenChain = vaa.subarray(offset, offset += 2);
 
   return {
     amount: BigInt(`0x${amount.toString('hex')}`),
-    tokenAddress: tokenAddress.toString('hex'),
-    tokenChain: tokenChain.readUInt16BE(),
-    toAddress: new PublicKey(toAddress),
-    toChain: toChain.readUInt16BE(),
-    tokenDecimals: tokenDecimals.readUInt8()
+    tokenDecimals: tokenDecimals.readUInt8(),
+    sourceTokenAddress: sourceTokenAddress.toString('hex'),
+    sourceUserAddress: sourceUserAddress.toString('hex'),
+    sourceTokenChain: sourceTokenChain.readUInt16BE(),
+    destTokenAddress: destTokenAddress.toString('hex'),
+    destUserAddress: new PublicKey(destUserAddress),
+    destTokenChain: destTokenChain.readUInt16BE()
   }
 }

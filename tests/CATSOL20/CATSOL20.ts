@@ -2,8 +2,6 @@ import * as anchor from "@coral-xyz/anchor";
 import { assert, expect } from "chai";
 import { Program } from "@coral-xyz/anchor";
 import { CatSol20 } from "../../target/types/cat_sol20";
-import { TOKEN_METADATA_PROGRAM_ID } from "@certusone/wormhole-sdk/lib/cjs/solana";
-import { deriveAddress } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import {
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
@@ -25,7 +23,12 @@ import {
   parseVaa,
   tryUint8ArrayToNative,
 } from '@certusone/wormhole-sdk';
-import { getWormholeCpiAccounts, getPostMessageCpiAccounts } from "@certusone/wormhole-sdk/lib/cjs/solana";
+import {
+  getWormholeCpiAccounts,
+  getPostMessageCpiAccounts, 
+  TOKEN_METADATA_PROGRAM_ID, 
+  deriveAddress
+} from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { getProgramSequenceTracker, derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
 import axios from "axios";
 import fs from "fs";
@@ -123,7 +126,7 @@ describe("cat_sol20", () => {
   describe("Initialization and Minting", () => {
     it("Can Initialize and Create a Mint", async () => {
       try {
-        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+        const [configAcc, _] = PublicKey.findProgramAddressSync([
           Buffer.from("config")
         ], SPL_CAT_PID);
 
@@ -193,7 +196,7 @@ describe("cat_sol20", () => {
     it("Can Mint Tokens", async () => {
       try {
 
-        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+        const [configAcc, _] = PublicKey.findProgramAddressSync([
           Buffer.from("config")
         ], SPL_CAT_PID);
 
@@ -259,7 +262,7 @@ describe("cat_sol20", () => {
 
   describe("Ownership Transfers", () => {
     it("Can Transfer Config Ownership", async () => {
-      const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+      const [configAcc, _] = PublicKey.findProgramAddressSync([
         Buffer.from("config")
       ], SPL_CAT_PID);
 
@@ -290,7 +293,7 @@ describe("cat_sol20", () => {
 
     it("Should Fail to Transfer Ownership to Existing Owner", async () => {
       try {
-        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+        const [configAcc, _] = PublicKey.findProgramAddressSync([
           Buffer.from("config")
         ], SPL_CAT_PID);
 
@@ -312,7 +315,7 @@ describe("cat_sol20", () => {
     it("Can Mint Tokens With New Owner", async () => {
       try {
 
-        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+        const [configAcc, _] = PublicKey.findProgramAddressSync([
           Buffer.from("config")
         ], SPL_CAT_PID);
 
@@ -322,7 +325,7 @@ describe("cat_sol20", () => {
         );
 
         let amount = new anchor.BN("100000000000000000");
-        const method = await program.methods.mintTokens(amount).accounts({
+        const method = program.methods.mintTokens(amount).accounts({
           owner: newOwner.publicKey,
           ataAuthority: newOwner.publicKey,
           config: configAcc,
@@ -372,7 +375,7 @@ describe("cat_sol20", () => {
         let targetEmitterAddress: string | number[] = getEmitterAddressEth(ethContractAddress);
         targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
 
-        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+        const [configAcc, _] = PublicKey.findProgramAddressSync([
           Buffer.from("config")
         ], SPL_CAT_PID);
 
@@ -424,7 +427,7 @@ describe("cat_sol20", () => {
         let targetEmitterAddress: string | number[] = getEmitterAddressSolana(SPL_CAT_PID);
         targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
 
-        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+        const [configAcc, _] = PublicKey.findProgramAddressSync([
           Buffer.from("config")
         ], SPL_CAT_PID);
 
@@ -453,7 +456,7 @@ describe("cat_sol20", () => {
   describe("Bridging", () => {
     it("Can Bridge Out", async () => {
       try {
-        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+        const [configAcc, _] = PublicKey.findProgramAddressSync([
           Buffer.from("config")
         ], SPL_CAT_PID);
 
@@ -595,17 +598,17 @@ describe("cat_sol20", () => {
           ], SPL_CAT_PID)[0];
 
 
-        const [configAcc, configBmp] = PublicKey.findProgramAddressSync([
+        const [configAcc, _] = PublicKey.findProgramAddressSync([
           Buffer.from("config")
         ], SPL_CAT_PID);
 
         const tokenUserATA = getAssociatedTokenAddressSync(
           tokenMintPDA,
-          payload.toAddress,
+          payload.destUserAddress,
         );
 
         const foreignChainId = Buffer.alloc(2);
-        foreignChainId.writeUInt16LE(payload.tokenChain);
+        foreignChainId.writeUInt16LE(payload.sourceTokenChain);
 
         const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
           Buffer.from("foreign_emitter"),
@@ -614,7 +617,7 @@ describe("cat_sol20", () => {
 
         const method = program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
           owner: newOwner.publicKey,
-          ataAuthority: payload.toAddress,
+          ataAuthority: payload.destUserAddress,
           tokenUserAta: tokenUserATA,
           tokenMint: tokenMintPDA,
           tokenProgram: TOKEN_PROGRAM_ID,
@@ -652,19 +655,25 @@ describe("cat_sol20", () => {
 
 
 function getParsedPayload(vaa: Buffer) {
-  let amount = vaa.subarray(0, 32);
-  let tokenAddress = vaa.subarray(32, 64);
-  let tokenChain = vaa.subarray(64, 66);
-  let toAddress = vaa.subarray(66, 98);
-  let toChain = vaa.subarray(98, 100);
-  let tokenDecimals = vaa.subarray(100, 101);
+  let offset = 0;
+
+  const amount = vaa.subarray(offset, offset += 32);
+  const tokenDecimals = vaa.subarray(offset, offset += 1);
+  const sourceTokenAddress = vaa.subarray(offset, offset += 32);
+  const sourceUserAddress = vaa.subarray(offset, offset += 32);
+  const sourceTokenChain = vaa.subarray(offset, offset += 2);
+  const destTokenAddress = vaa.subarray(offset, offset += 32);
+  const destUserAddress = vaa.subarray(offset, offset += 32);
+  const destTokenChain = vaa.subarray(offset, offset += 2);
 
   return {
     amount: BigInt(`0x${amount.toString('hex')}`),
-    tokenAddress: tokenAddress.toString('hex'),
-    tokenChain: tokenChain.readUInt16BE(),
-    toAddress: new PublicKey(toAddress),
-    toChain: toChain.readUInt16BE(),
-    tokenDecimals: tokenDecimals.readUInt8()
+    tokenDecimals: tokenDecimals.readUInt8(),
+    sourceTokenAddress: sourceTokenAddress.toString('hex'),
+    sourceUserAddress: sourceUserAddress.toString('hex'),
+    sourceTokenChain: sourceTokenChain.readUInt16BE(),
+    destTokenAddress: destTokenAddress.toString('hex'),
+    destUserAddress: new PublicKey(destUserAddress),
+    destTokenChain: destTokenChain.readUInt16BE()
   }
 }

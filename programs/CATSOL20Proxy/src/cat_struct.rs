@@ -4,11 +4,13 @@ use std::io::{self, Read, Write};
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct CrossChainStruct {
     pub amount: U256,
-    pub token_address: [u8; 32],
-    pub token_chain: u16,
-    pub to_address: [u8; 32],
-    pub to_chain: u16,
     pub token_decimals: u8,
+    pub source_token_address: [u8; 32],
+    pub source_user_address: [u8; 32],
+    pub source_token_chain: u16,
+    pub dest_token_address: [u8; 32],
+    pub dest_user_address: [u8; 32],
+    pub dest_token_chain: u16,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug)]
@@ -44,11 +46,13 @@ impl AnchorSerialize for CATSOLStructs {
             CATSOLStructs::Alive { program_id } => program_id.serialize(writer),
             CATSOLStructs::CrossChainPayload { payload } => {
                 payload.amount.serialize(writer)?;
-                writer.write_all(&payload.token_address)?;
-                writer.write_all(&payload.token_chain.to_be_bytes())?;
-                writer.write_all(&payload.to_address)?;
-                writer.write_all(&payload.to_chain.to_be_bytes())?;
                 writer.write_all(&payload.token_decimals.to_le_bytes())?;
+                writer.write_all(&payload.source_token_address)?;
+                writer.write_all(&payload.source_user_address)?;
+                writer.write_all(&payload.source_token_chain.to_be_bytes())?;
+                writer.write_all(&payload.dest_token_address)?;
+                writer.write_all(&payload.dest_user_address)?;
+                writer.write_all(&payload.dest_token_chain.to_be_bytes())?;
                 Ok(())
             }
         }
@@ -66,35 +70,41 @@ impl AnchorDeserialize for CATSOLStructs {
             // Assume this is a CrossChainPayload variant otherwise
             let mut amount_bytes = [0u8; 32];
             bytes.read_exact(&mut amount_bytes)?;
-            let amount = U256 {
-                bytes: amount_bytes,
-            };
-
-            let mut token_address = [0u8; 32];
-            bytes.read_exact(&mut token_address)?;
-
-            let mut token_chain_bytes = [0u8; 2];
-            bytes.read_exact(&mut token_chain_bytes)?;
-            let token_chain = u16::from_be_bytes(token_chain_bytes);
-
-            let mut to_address = [0u8; 32];
-            bytes.read_exact(&mut to_address)?;
-
-            let mut to_chain_bytes = [0u8; 2];
-            bytes.read_exact(&mut to_chain_bytes)?;
-            let to_chain = u16::from_be_bytes(to_chain_bytes);
+            let amount = U256 { bytes: amount_bytes };
 
             let mut token_decimals_bytes = [0u8; 1];
             bytes.read_exact(&mut token_decimals_bytes)?;
             let token_decimals = u8::from_le_bytes(token_decimals_bytes);
 
+            let mut source_token_address = [0u8; 32];
+            bytes.read_exact(&mut source_token_address)?;
+
+            let mut source_user_address = [0u8; 32];
+            bytes.read_exact(&mut source_user_address)?;
+
+            let mut source_token_chain_bytes = [0u8; 2];
+            bytes.read_exact(&mut source_token_chain_bytes)?;
+            let source_token_chain = u16::from_be_bytes(source_token_chain_bytes);
+
+            let mut dest_token_address = [0u8; 32];
+            bytes.read_exact(&mut dest_token_address)?;
+
+            let mut dest_user_address = [0u8; 32];
+            bytes.read_exact(&mut dest_user_address)?;
+
+            let mut dest_token_chain_bytes = [0u8; 2];
+            bytes.read_exact(&mut dest_token_chain_bytes)?;
+            let dest_token_chain = u16::from_be_bytes(dest_token_chain_bytes);
+
             let payload = CrossChainStruct {
                 amount,
-                token_address,
-                token_chain,
-                to_address,
-                to_chain,
                 token_decimals,
+                source_token_address,
+                source_user_address,
+                source_token_chain,
+                dest_token_address,
+                dest_user_address,
+                dest_token_chain,
             };
             Ok(CATSOLStructs::CrossChainPayload { payload })
         }

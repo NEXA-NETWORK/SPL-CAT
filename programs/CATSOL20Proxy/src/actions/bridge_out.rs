@@ -177,11 +177,13 @@ impl BridgeOut<'_> {
         // Create the payload
         let payload = CrossChainStruct {
             amount: U256::from(foreign_amount),
-            token_address: ctx.accounts.token_user_ata.key().to_bytes(),
-            token_chain: wormhole::CHAIN_ID_SOLANA,
-            to_address: params.recipient,
-            to_chain: params.recipient_chain,
             token_decimals: ctx.accounts.token_mint.decimals,
+            source_token_address: ctx.program_id.to_bytes(),
+            source_user_address: ctx.accounts.token_user_ata.key().to_bytes(),
+            source_token_chain: wormhole::CHAIN_ID_SOLANA,
+            dest_token_address: ctx.accounts.foreign_emitter.address,
+            dest_user_address: params.recipient,
+            dest_token_chain: params.recipient_chain
         };
 
         // Serialize the payload
