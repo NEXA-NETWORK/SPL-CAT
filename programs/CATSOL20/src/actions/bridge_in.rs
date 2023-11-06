@@ -108,8 +108,9 @@ impl BridgeIn<'_> {
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
+            let dest_chain: u64 = payload.dest_token_chain.into();
             require!(
-                payload.dest_token_chain == wormhole::CHAIN_ID_SOLANA,
+                dest_chain == u64::from(wormhole::CHAIN_ID_SOLANA),
                 ErrorFactory::InvalidDestinationChain
             );
             
@@ -137,10 +138,7 @@ impl BridgeIn<'_> {
                 to: ctx.accounts.token_user_ata.to_account_info(),
                 authority: ctx.accounts.owner.to_account_info(),
             };
-            let bump = *ctx
-                .bumps
-                .get("token_mint")
-                .ok_or(ErrorFactory::BumpNotFound)?;
+            let bump = ctx.bumps.token_mint;
 
             let cpi_signer_seeds = &[
                 b"spl_cat_token".as_ref(),

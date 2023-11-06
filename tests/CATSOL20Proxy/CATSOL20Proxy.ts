@@ -150,8 +150,8 @@ describe("cat_sol20_proxy", () => {
   it("Can Register a chain", async () => {
     try {
       // Registering Ethereum 
-      const foreignChainId = Buffer.alloc(2);
-      foreignChainId.writeUInt16LE(CHAINS.ethereum);
+      const foreignChainId = Buffer.alloc(8);
+      foreignChainId.writeBigUInt64LE(BigInt(CHAINS.ethereum));
 
       const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("foreign_emitter"),
@@ -169,7 +169,7 @@ describe("cat_sol20_proxy", () => {
       ], SPL_CAT_PROXY_PID);
 
       const tx = await program.methods.registerEmitter({
-        chain: CHAINS.ethereum,
+        chain: new anchor.BN(CHAINS.ethereum),
         address: targetEmitterAddress,
       }).accounts({
         owner: KEYPAIR.publicKey,
@@ -191,8 +191,8 @@ describe("cat_sol20_proxy", () => {
 
     try {
 
-      const foreignChainId = Buffer.alloc(2);
-      foreignChainId.writeUInt16LE(CHAINS.ethereum);
+      const foreignChainId = Buffer.alloc(8);
+      foreignChainId.writeBigUInt64LE(BigInt(CHAINS.ethereum));
 
       const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("foreign_emitter"),
@@ -236,7 +236,7 @@ describe("cat_sol20_proxy", () => {
       // Parameters
 
       let amount = new anchor.BN(10000).mul(oneToken);
-      let recipientChain = 2;
+      let recipientChain = new anchor.BN(2);
 
       // Approve
       const transaction = new anchor.web3.Transaction();
@@ -345,8 +345,8 @@ describe("cat_sol20_proxy", () => {
 
       const tokenMintATA = PublicKey.findProgramAddressSync([LOCK_PDA_SEED, testTokenMintPDA.toBuffer()], SPL_CAT_PROXY_PID)[0];
 
-      const foreignChainId = Buffer.alloc(2);
-      foreignChainId.writeUInt16LE(payload.sourceTokenChain);
+      const foreignChainId = Buffer.alloc(8);
+      foreignChainId.writeBigUInt64LE(payload.sourceTokenChain);
 
       const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
         Buffer.from("foreign_emitter"),
@@ -382,19 +382,19 @@ function getParsedPayload(vaa: Buffer) {
   const tokenDecimals = vaa.subarray(offset, offset += 1);
   const sourceTokenAddress = vaa.subarray(offset, offset += 32);
   const sourceUserAddress = vaa.subarray(offset, offset += 32);
-  const sourceTokenChain = vaa.subarray(offset, offset += 2);
+  const sourceTokenChain = vaa.subarray(offset + 24, offset += 32);
   const destTokenAddress = vaa.subarray(offset, offset += 32);
   const destUserAddress = vaa.subarray(offset, offset += 32);
-  const destTokenChain = vaa.subarray(offset, offset += 2);
+  const destTokenChain = vaa.subarray(offset + 24, offset += 32);
 
   return {
     amount: BigInt(`0x${amount.toString('hex')}`),
     tokenDecimals: tokenDecimals.readUInt8(),
     sourceTokenAddress: sourceTokenAddress.toString('hex'),
     sourceUserAddress: sourceUserAddress.toString('hex'),
-    sourceTokenChain: sourceTokenChain.readUInt16BE(),
+    sourceTokenChain: sourceTokenChain.readBigUInt64BE(),
     destTokenAddress: destTokenAddress.toString('hex'),
     destUserAddress: new PublicKey(destUserAddress),
-    destTokenChain: destTokenChain.readUInt16BE()
+    destTokenChain: destTokenChain.readBigUInt64BE(),
   }
 }

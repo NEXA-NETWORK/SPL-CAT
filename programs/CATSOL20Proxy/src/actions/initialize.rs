@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token::{Mint, Token, TokenAccount},
@@ -8,7 +9,6 @@ use wormhole_anchor_sdk::wormhole;
 use crate::{
     cat_struct::CATSOLStructs,
     constants::*,
-    error::ErrorFactory,
     state::{Config, WormholeEmitter},
 };
 
@@ -162,10 +162,7 @@ impl Initialize<'_> {
         config.finality = wormhole::Finality::Confirmed as u8;
 
         // Storing the BumpSeed for the Wormhole Emitter
-        ctx.accounts.wormhole_emitter.bump = *ctx
-            .bumps
-            .get("wormhole_emitter")
-            .ok_or(ErrorFactory::BumpNotFound)?;
+        ctx.accounts.wormhole_emitter.bump = ctx.bumps.wormhole_emitter;
 
         // Now We will send a message to initialize the Sequence Tracker for future messages
         // by posting a message to the Wormhole program.
@@ -212,10 +209,7 @@ impl Initialize<'_> {
                         &[
                             SEED_PREFIX_SENT,
                             &wormhole::INITIAL_SEQUENCE.to_le_bytes()[..],
-                            &[*ctx
-                                .bumps
-                                .get("wormhole_message")
-                                .ok_or(ErrorFactory::BumpNotFound)?],
+                            &[ctx.bumps.wormhole_message],
                         ],
                         &[wormhole::SEED_PREFIX_EMITTER, &[wormhole_emitter.bump]],
                     ],

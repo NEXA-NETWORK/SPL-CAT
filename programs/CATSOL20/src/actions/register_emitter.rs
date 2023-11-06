@@ -7,7 +7,7 @@ use crate::{
 
 #[derive(Clone, AnchorSerialize, AnchorDeserialize)]
 pub struct RegisterEmitterParams {
-    pub chain: u16,
+    pub chain: u64,
     pub address: [u8; 32]
 }
 
@@ -49,7 +49,7 @@ impl RegisterEmitter<'_> {
         // Foreign emitter cannot share the same Wormhole Chain ID as the
         // Solana Wormhole program's. And cannot register a zero address.
         require!(
-            chain > 0 && chain != wormhole::CHAIN_ID_SOLANA && !address.iter().all(|&x| x == 0),
+            chain > 0 && chain != u64::from(wormhole::CHAIN_ID_SOLANA) && !address.iter().all(|&x| x == 0),
             ErrorFactory::InvalidForeignEmitter,
         );
 

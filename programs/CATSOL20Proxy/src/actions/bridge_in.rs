@@ -1,18 +1,17 @@
 use anchor_lang::prelude::*;
-use wormhole_anchor_sdk::wormhole;
 use anchor_spl::{
     associated_token::{self, AssociatedToken},
-    token::{transfer, Transfer, Mint, Token, TokenAccount},
+    token::{transfer, Mint, Token, TokenAccount, Transfer},
 };
+use wormhole_anchor_sdk::wormhole;
 
 use crate::{
-    constants::*,
-    utils_cat::*,
-    error::ErrorFactory,
     cat_struct::CATSOLStructs,
-    state::{Config, ForeignEmitter, Received}
+    constants::*,
+    error::ErrorFactory,
+    state::{Config, ForeignEmitter, Received},
+    utils_cat::*,
 };
-
 
 #[derive(Accounts)]
 #[instruction(vaa_hash: [u8; 32])]
@@ -103,17 +102,18 @@ pub struct BridgeIn<'info> {
     pub system_program: Program<'info, System>,
 }
 
-
 impl BridgeIn<'_> {
     pub fn bridge_in(ctx: Context<BridgeIn>, vaa_hash: [u8; 32]) -> Result<()> {
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
+
+            let dest_chain: u64 = payload.dest_token_chain.into();
             require!(
-                payload.dest_token_chain == wormhole::CHAIN_ID_SOLANA,
+                dest_chain == u64::from(wormhole::CHAIN_ID_SOLANA),
                 ErrorFactory::InvalidDestinationChain
             );
-            
+
             let ata_address = associated_token::get_associated_token_address(
                 &Pubkey::from(payload.dest_user_address),
                 &ctx.accounts.token_mint.key(),
@@ -139,10 +139,7 @@ impl BridgeIn<'_> {
                 authority: ctx.accounts.token_mint_ata.to_account_info(),
             };
 
-            let bump = *ctx
-                .bumps
-                .get("token_mint_ata")
-                .ok_or(ErrorFactory::BumpNotFound)?;
+            let bump = ctx.bumps.token_mint_ata;
 
             let cpi_signer_seeds = &[
                 b"cat_sol_proxy".as_ref(),

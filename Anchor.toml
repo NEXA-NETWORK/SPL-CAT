@@ -1,8 +1,12 @@
+[toolchain]
+
 [features]
 seeds = false
 skip-lint = false
+
 [programs.localnet]
-cat_sol20 = "6fi6yXzAnknteN94jJ9iZWjpMBSxp1NdADrqApgW7dV6"
+cat_sol20 = "Dw4ev4agC4ZYxi1HUJtruS4xWij5iMQxijLX4J7coC4q"
+cat_sol20_proxy = "JA3FctHbRBoDtdiw8PaVFosGt6KYDKqA42St7pr9DQzb"
 
 [registry]
 url = "https://api.apr.dev"

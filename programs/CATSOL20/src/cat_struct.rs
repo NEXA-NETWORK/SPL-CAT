@@ -1,3 +1,4 @@
+use anchor_lang::prelude::*;
 use anchor_lang::{prelude::Pubkey, AnchorDeserialize, AnchorSerialize};
 use std::io::{self, Read, Write};
 
@@ -7,15 +8,15 @@ pub struct CrossChainStruct {
     pub token_decimals: u8,
     pub source_token_address: [u8; 32],
     pub source_user_address: [u8; 32],
-    pub source_token_chain: u16,
+    pub source_token_chain: U256,
     pub dest_token_address: [u8; 32],
     pub dest_user_address: [u8; 32],
-    pub dest_token_chain: u16,
+    pub dest_token_chain: U256,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug)]
+#[derive(Default, AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug)]
 pub struct U256 {
-    bytes: [u8; 32],
+    pub bytes: [u8; 32],
 }
 
 impl From<u64> for U256 {
@@ -49,10 +50,10 @@ impl AnchorSerialize for CATSOLStructs {
                 writer.write_all(&payload.token_decimals.to_le_bytes())?;
                 writer.write_all(&payload.source_token_address)?;
                 writer.write_all(&payload.source_user_address)?;
-                writer.write_all(&payload.source_token_chain.to_be_bytes())?;
+                payload.source_token_chain.serialize(writer)?;
                 writer.write_all(&payload.dest_token_address)?;
                 writer.write_all(&payload.dest_user_address)?;
-                writer.write_all(&payload.dest_token_chain.to_be_bytes())?;
+                payload.dest_token_chain.serialize(writer)?;
                 Ok(())
             }
         }
@@ -70,7 +71,9 @@ impl AnchorDeserialize for CATSOLStructs {
             // Assume this is a CrossChainPayload variant otherwise
             let mut amount_bytes = [0u8; 32];
             bytes.read_exact(&mut amount_bytes)?;
-            let amount = U256 { bytes: amount_bytes };
+            let amount = U256 {
+                bytes: amount_bytes,
+            };
 
             let mut token_decimals_bytes = [0u8; 1];
             bytes.read_exact(&mut token_decimals_bytes)?;
@@ -82,9 +85,11 @@ impl AnchorDeserialize for CATSOLStructs {
             let mut source_user_address = [0u8; 32];
             bytes.read_exact(&mut source_user_address)?;
 
-            let mut source_token_chain_bytes = [0u8; 2];
+            let mut source_token_chain_bytes = [0u8; 32];
             bytes.read_exact(&mut source_token_chain_bytes)?;
-            let source_token_chain = u16::from_be_bytes(source_token_chain_bytes);
+            let source_token_chain = U256 {
+                bytes: source_token_chain_bytes,
+            };
 
             let mut dest_token_address = [0u8; 32];
             bytes.read_exact(&mut dest_token_address)?;
@@ -92,9 +97,11 @@ impl AnchorDeserialize for CATSOLStructs {
             let mut dest_user_address = [0u8; 32];
             bytes.read_exact(&mut dest_user_address)?;
 
-            let mut dest_token_chain_bytes = [0u8; 2];
+            let mut dest_token_chain_bytes = [0u8; 32];
             bytes.read_exact(&mut dest_token_chain_bytes)?;
-            let dest_token_chain = u16::from_be_bytes(dest_token_chain_bytes);
+            let dest_token_chain = U256 {
+                bytes: dest_token_chain_bytes,
+            };
 
             let payload = CrossChainStruct {
                 amount,
@@ -108,5 +115,11 @@ impl AnchorDeserialize for CATSOLStructs {
             };
             Ok(CATSOLStructs::CrossChainPayload { payload })
         }
+    }
+    
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        Self::deserialize(&mut &buf[..])
     }
 }

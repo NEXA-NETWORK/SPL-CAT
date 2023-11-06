@@ -64,10 +64,7 @@ impl MintTokens<'_> {
             to: ctx.accounts.token_user_ata.to_account_info(),
             authority: ctx.accounts.token_mint.to_account_info(),
         };
-        let bump = *ctx
-            .bumps
-            .get("token_mint")
-            .ok_or(ErrorFactory::BumpNotFound)?;
+        let bump = ctx.bumps.token_mint;
 
         let cpi_signer_seeds = &[
             b"spl_cat_token".as_ref(),

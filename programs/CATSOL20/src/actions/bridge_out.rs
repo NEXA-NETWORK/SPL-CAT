@@ -1,4 +1,5 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program;
 use wormhole_anchor_sdk::wormhole;
 use anchor_spl::{
     associated_token::AssociatedToken,
@@ -16,7 +17,7 @@ use crate::{
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct BridgeOutParams {
     pub amount: u64,
-    pub recipient_chain: u16,
+    pub recipient_chain: u64,
     pub recipient: [u8; 32],
 }
 #[derive(Accounts)]
@@ -152,10 +153,7 @@ impl BridgeOut<'_> {
             from: ctx.accounts.token_user_ata.to_account_info(),
             authority: ctx.accounts.owner.to_account_info(),
         };
-        let bump = *ctx
-            .bumps
-            .get("token_mint")
-            .ok_or(ErrorFactory::BumpNotFound)?;
+        let bump = ctx.bumps.token_mint;
 
         let cpi_signer_seeds = &[
             b"spl_cat_token".as_ref(),
@@ -177,10 +175,10 @@ impl BridgeOut<'_> {
             token_decimals: ctx.accounts.token_mint.decimals,
             source_token_address: ctx.program_id.to_bytes(),
             source_user_address: ctx.accounts.ata_authority.key().to_bytes(),
-            source_token_chain: wormhole::CHAIN_ID_SOLANA,
+            source_token_chain: U256::from(u64::from(wormhole::CHAIN_ID_SOLANA)),
             dest_token_address: ctx.accounts.foreign_emitter.address,
             dest_user_address: params.recipient,
-            dest_token_chain: params.recipient_chain
+            dest_token_chain: U256::from(params.recipient_chain)
         };
 
         // Serialize the payload
@@ -209,10 +207,7 @@ impl BridgeOut<'_> {
                     &[
                         SEED_PREFIX_SENT,
                         &ctx.accounts.wormhole_sequence.next_value().to_le_bytes()[..],
-                        &[*ctx
-                            .bumps
-                            .get("wormhole_message")
-                            .ok_or(ErrorFactory::BumpNotFound)?],
+                        &[ctx.bumps.wormhole_message],
                     ],
                     &[wormhole::SEED_PREFIX_EMITTER, &[wormhole_emitter.bump]],
                 ],

@@ -1,5 +1,5 @@
 use anchor_lang::{prelude::*, solana_program};
-use std::io;
+use std::io::{self, Read};
 
 use crate::wormhole::{message::PostedVaaMeta, program::ID};
 
@@ -184,6 +184,12 @@ impl AnchorDeserialize for PostedVaaData {
             payload: Vec::deserialize(&mut &buf[88..])?,
         })
     }
+
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        Self::deserialize(&mut &buf[..])
+    }
 }
 
 impl AccountDeserialize for PostedVaaData {
@@ -268,6 +274,12 @@ impl<D: AnchorDeserialize + AnchorSerialize> AnchorDeserialize for PostedVaa<D> 
                 D::deserialize(&mut &buf[92..(92 + data_size as usize)])?,
             ),
         })
+    }
+
+    fn deserialize_reader<R: Read>(reader: &mut R) -> io::Result<Self> {
+        let mut buf = Vec::new();
+        reader.read_to_end(&mut buf)?;
+        Self::deserialize(&mut &buf[..])
     }
 }
 

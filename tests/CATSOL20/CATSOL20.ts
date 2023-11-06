@@ -25,8 +25,8 @@ import {
 } from '@certusone/wormhole-sdk';
 import {
   getWormholeCpiAccounts,
-  getPostMessageCpiAccounts, 
-  TOKEN_METADATA_PROGRAM_ID, 
+  getPostMessageCpiAccounts,
+  TOKEN_METADATA_PROGRAM_ID,
   deriveAddress
 } from "@certusone/wormhole-sdk/lib/cjs/solana";
 import { getProgramSequenceTracker, derivePostedVaaKey } from "@certusone/wormhole-sdk/lib/cjs/solana/wormhole";
@@ -61,9 +61,9 @@ describe("cat_sol20", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(provider);
 
-  let program: Program<CatSol20>;
+  const program = anchor.workspace.CatSol20 as Program<CatSol20>;
 
-  let SPL_CAT_PID: PublicKey;
+  let SPL_CAT_PID: PublicKey = program.programId;
 
 
   const CORE_BRIDGE_PID = "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o";
@@ -75,10 +75,9 @@ describe("cat_sol20", () => {
   const newOwner = anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('/home/ace/.config/solana/id2.json').toString())));
 
   // The Token Mint we will use for testing
-  let tokenMintPDA;
-
+  let tokenMintPDA = PublicKey.findProgramAddressSync([Buffer.from("spl_cat_token")], SPL_CAT_PID)[0];
   // The Token Metadata PDA
-  let tokenMetadataPDA;
+  let tokenMetadataPDA = PublicKey.findProgramAddressSync([Buffer.from("metadata"), TOKEN_METADATA_PROGRAM_ID.toBuffer(), tokenMintPDA.toBuffer()], TOKEN_METADATA_PROGRAM_ID)[0];
 
   // The Bridge out VAA will be saved here and used for Bridge In
   let VAA: any = null;
@@ -86,34 +85,32 @@ describe("cat_sol20", () => {
   before(async () => {
     try {
 
-      console.log("Deploying program...");
-      await deployProgram("cat_sol20", "Localnet", "/home/ace/.config/solana/id.json").then((stdout) => {
-        console.log(stdout);
-      });
+      // console.log("Deploying program...");
+      // await deployProgram("cat_sol20", "Localnet", "/home/ace/.config/solana/id.json").then((stdout) => {
+      //   console.log(stdout);
+      // });
 
-      // Get the RPC URL for the local cluster.
-      const rpc = (provider.connection.rpcEndpoint).toString();
-      console.log("RPC: ", rpc);
+      // // Get the RPC URL for the local cluster.
+      // const rpc = (provider.connection.rpcEndpoint).toString();
+      // console.log("RPC: ", rpc);
 
-      // Get the IDL
-      const IDL = JSON.parse(fs.readFileSync("./target/idl/cat_sol20.json").toString());
+      // // Get the IDL
+      // const IDL = JSON.parse(fs.readFileSync("./target/idl/cat_sol20.json").toString());
 
-      // Get Program ID
-      SPL_CAT_PID = new anchor.web3.PublicKey(anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('./target/deploy/cat_sol20-keypair.json').toString()))).publicKey);
+      // // Get Program ID
+      // SPL_CAT_PID = new anchor.web3.PublicKey(anchor.web3.Keypair.fromSecretKey(Uint8Array.from(JSON.parse(fs.readFileSync('./target/deploy/cat_sol20-keypair.json').toString()))).publicKey);
 
-      // Generate the program client from IDL.
-      program = program = new anchor.Program(
-        IDL,
-        SPL_CAT_PID,
-        new anchor.AnchorProvider(
-          new anchor.web3.Connection(rpc),
-          new anchor.Wallet(KEYPAIR),
-          {}));
+      // // Generate the program client from IDL.
+      // program = program = new anchor.Program(
+      //   IDL,
+      //   SPL_CAT_PID,
+      //   new anchor.AnchorProvider(
+      //     new anchor.web3.Connection(rpc),
+      //     new anchor.Wallet(KEYPAIR),
+      //     {}));
 
-      console.log("Program: ", program.programId.toString());
+      // console.log("Program: ", program.programId.toString());
 
-      tokenMintPDA = PublicKey.findProgramAddressSync([Buffer.from("spl_cat_token")], SPL_CAT_PID)[0];
-      tokenMetadataPDA = PublicKey.findProgramAddressSync([Buffer.from("metadata"), TOKEN_METADATA_PROGRAM_ID.toBuffer(), tokenMintPDA.toBuffer()], TOKEN_METADATA_PROGRAM_ID)[0];
 
       const tx = await provider.connection.requestAirdrop(newOwner.publicKey, 10 * LAMPORTS_PER_SOL);
       console.log("Fund AirDrop Transaction: ", tx);
@@ -169,19 +166,9 @@ describe("cat_sol20", () => {
           systemProgram: anchor.web3.SystemProgram.programId,
         }).signers([KEYPAIR]);
 
-        const tx = await method.transaction();
-        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
-        tx.feePayer = KEYPAIR.publicKey;
-        const message = tx.compileMessage();
-
-        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
-        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
-
-        const simulate = await provider.connection.simulateTransaction(tx);
-        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
-
         const rpc = await method.rpc();
         console.log("Your transaction signature", rpc);
+        console.log("Token Mint: ", tokenMintPDA.toString());
 
         // Check the config account
         const configAccount = await program.account.config.fetch(configAcc);
@@ -216,17 +203,6 @@ describe("cat_sol20", () => {
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: anchor.web3.SystemProgram.programId,
         }).signers([KEYPAIR]);
-
-        const tx = await method.transaction();
-        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
-        tx.feePayer = KEYPAIR.publicKey;
-        const message = tx.compileMessage();
-
-        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
-        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
-
-        const simulate = await provider.connection.simulateTransaction(tx);
-        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
 
         const rpc = await method.rpc();
         console.log("Your transaction signature", rpc);
@@ -272,23 +248,8 @@ describe("cat_sol20", () => {
         config: configAcc,
       }).signers([KEYPAIR]);
 
-      const tx = await method.transaction();
-      tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
-      tx.feePayer = KEYPAIR.publicKey;
-      const message = tx.compileMessage();
-
-      const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
-      console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
-
-      const simulate = await provider.connection.simulateTransaction(tx);
-      console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
-
       const rpc = await method.rpc();
       console.log("Your transaction signature", rpc);
-
-      // You can assert that the transaction was successful.
-      assert.ok(tx, "Transaction failed");
-      console.log("Your transaction signature", tx);
     });
 
     it("Should Fail to Transfer Ownership to Existing Owner", async () => {
@@ -336,18 +297,6 @@ describe("cat_sol20", () => {
           systemProgram: anchor.web3.SystemProgram.programId,
         }).signers([newOwner]);
 
-        const tx = await method.transaction();
-
-        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
-        tx.feePayer = KEYPAIR.publicKey;
-        const message = tx.compileMessage();
-
-        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
-        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
-
-        const simulate = await provider.connection.simulateTransaction(tx);
-        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
-
         const rpc = await method.rpc();
         console.log("Your transaction signature", rpc);
 
@@ -362,8 +311,8 @@ describe("cat_sol20", () => {
     it("Can Register a chain", async () => {
       try {
         // Registering Ethereum 
-        const foreignChainId = Buffer.alloc(2);
-        foreignChainId.writeUInt16LE(CHAINS.ethereum);
+        const foreignChainId = Buffer.alloc(8);
+        foreignChainId.writeBigUInt64LE(BigInt(CHAINS.ethereum));
 
         const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
           Buffer.from("foreign_emitter"),
@@ -371,7 +320,7 @@ describe("cat_sol20", () => {
         ], SPL_CAT_PID)
 
         // Replace this with the Eth Contract
-        const ethContractAddress = "0x970e8f18ebfEa0B08810f33a5A40438b9530FBCF";
+        const ethContractAddress = "0xE1C6178A3A945087eAcE41F35c19042a53a9AFFE";
         let targetEmitterAddress: string | number[] = getEmitterAddressEth(ethContractAddress);
         targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
 
@@ -380,7 +329,7 @@ describe("cat_sol20", () => {
         ], SPL_CAT_PID);
 
         const method = program.methods.registerEmitter({
-          chain: CHAINS.ethereum,
+          chain: new anchor.BN(CHAINS.ethereum),
           address: targetEmitterAddress,
         }).accounts({
           owner: newOwner.publicKey,
@@ -389,18 +338,6 @@ describe("cat_sol20", () => {
           systemProgram: anchor.web3.SystemProgram.programId
         })
           .signers([newOwner])
-
-        const tx = await method.transaction();
-
-        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
-        tx.feePayer = KEYPAIR.publicKey;
-        const message = tx.compileMessage();
-
-        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
-        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
-
-        const simulate = await provider.connection.simulateTransaction(tx);
-        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
 
         const rpc = await method.rpc();
         console.log("Your transaction signature", rpc);
@@ -416,8 +353,8 @@ describe("cat_sol20", () => {
     it("Should Fail to Register a chain with an invalid chain", async () => {
       try {
         // Registering Solaan
-        const foreignChainId = Buffer.alloc(2);
-        foreignChainId.writeUInt16LE(CHAINS.solana);
+        const foreignChainId = Buffer.alloc(8);
+        foreignChainId.writeBigUInt64LE(BigInt(CHAINS.solana));
 
         const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
           Buffer.from("foreign_emitter"),
@@ -432,7 +369,7 @@ describe("cat_sol20", () => {
         ], SPL_CAT_PID);
 
         const tx = await program.methods.registerEmitter({
-          chain: CHAINS.solana,
+          chain: new anchor.BN(CHAINS.solana),
           address: targetEmitterAddress,
         }).accounts({
           owner: newOwner.publicKey,
@@ -466,8 +403,8 @@ describe("cat_sol20", () => {
           newOwner.publicKey,
         );
 
-        const foreignChainId = Buffer.alloc(2);
-        foreignChainId.writeUInt16LE(CHAINS.ethereum);
+        const foreignChainId = Buffer.alloc(8);
+        foreignChainId.writeBigUInt64LE(BigInt(CHAINS.ethereum));
 
         const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
           Buffer.from("foreign_emitter"),
@@ -503,7 +440,7 @@ describe("cat_sol20", () => {
 
         // Parameters
         let amount = new anchor.BN("10000000000000000");
-        let recipientChain = 2;
+        let recipientChain = new anchor.BN(2);
         const method = program.methods.bridgeOut({
           amount,
           recipientChain,
@@ -523,22 +460,9 @@ describe("cat_sol20", () => {
           ...wormholeAccounts,
         }).signers([newOwner])
 
-        const tx = await method.transaction();
-
-        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
-        tx.feePayer = KEYPAIR.publicKey;
-        const message = tx.compileMessage();
-
-        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
-        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
-
-        const simulate = await provider.connection.simulateTransaction(tx);
-        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
-
         const rpc = await method.rpc();
         console.log("Your transaction signature", rpc);
 
-        console.log("Your transaction signature", tx);
         await new Promise((r) => setTimeout(r, 3000)); // Wait for tx to be confirmed
 
         const confirmedTx = await provider.connection.getTransaction(rpc, { commitment: "confirmed", maxSupportedTransactionVersion: 2 });
@@ -562,6 +486,9 @@ describe("cat_sol20", () => {
         );
         VAA = vaaBytes.data.vaaBytes;
         console.log("VAA Bytes: ", vaaBytes.data);
+
+        const parseedVAA = parseVaa(Buffer.from(VAA, 'base64'))
+        console.log("Parsed VAA Hash", parseedVAA.hash.toString())
 
       } catch (e: any) {
         console.log(e);
@@ -607,8 +534,8 @@ describe("cat_sol20", () => {
           payload.destUserAddress,
         );
 
-        const foreignChainId = Buffer.alloc(2);
-        foreignChainId.writeUInt16LE(payload.sourceTokenChain);
+        const foreignChainId = Buffer.alloc(8);
+        foreignChainId.writeBigUInt64LE(payload.sourceTokenChain);
 
         const [emitterAcc, emitterBmp] = PublicKey.findProgramAddressSync([
           Buffer.from("foreign_emitter"),
@@ -661,19 +588,19 @@ function getParsedPayload(vaa: Buffer) {
   const tokenDecimals = vaa.subarray(offset, offset += 1);
   const sourceTokenAddress = vaa.subarray(offset, offset += 32);
   const sourceUserAddress = vaa.subarray(offset, offset += 32);
-  const sourceTokenChain = vaa.subarray(offset, offset += 2);
+  const sourceTokenChain = vaa.subarray(offset + 24, offset += 32);
   const destTokenAddress = vaa.subarray(offset, offset += 32);
   const destUserAddress = vaa.subarray(offset, offset += 32);
-  const destTokenChain = vaa.subarray(offset, offset += 2);
+  const destTokenChain = vaa.subarray(offset + 24, offset += 32);
 
   return {
     amount: BigInt(`0x${amount.toString('hex')}`),
     tokenDecimals: tokenDecimals.readUInt8(),
     sourceTokenAddress: sourceTokenAddress.toString('hex'),
     sourceUserAddress: sourceUserAddress.toString('hex'),
-    sourceTokenChain: sourceTokenChain.readUInt16BE(),
+    sourceTokenChain: sourceTokenChain.readBigUInt64BE(),
     destTokenAddress: destTokenAddress.toString('hex'),
     destUserAddress: new PublicKey(destUserAddress),
-    destTokenChain: destTokenChain.readUInt16BE()
+    destTokenChain: destTokenChain.readBigUInt64BE(),
   }
 }

@@ -7,7 +7,7 @@ pub mod config;
 pub mod context;
 pub mod error;
 
-declare_id!("BxEc6d3UuHJ7cdKxHQ8NJvc9bnW8bzwfWXXg4rmteFMk");
+declare_id!("CBzsxWHrSXnJfBjmjxF9E8u7i128E6yJBmHMoQ7WiEDV");
 
 #[program]
 pub mod test_token {

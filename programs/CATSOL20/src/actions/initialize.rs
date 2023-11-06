@@ -7,7 +7,6 @@ use anchor_spl::{
 
 use crate::{
     constants::*,
-    error::ErrorFactory,
     cat_struct::CATSOLStructs,
     state::{Config, WormholeEmitter}
 };
@@ -194,6 +193,7 @@ impl Initialize<'_> {
 
         // Create Metadata for the tokens.
         {
+
             let create_metadata_account_ix = create_metadata_accounts_v3(
                 ctx.accounts.metadata_program.key(),
                 ctx.accounts.metadata_account.key(),
@@ -213,10 +213,7 @@ impl Initialize<'_> {
                 None,
             );
 
-            let bump = *ctx
-            .bumps
-            .get("token_mint")
-            .ok_or(ErrorFactory::BumpNotFound)?;
+            let bump = ctx.bumps.token_mint;
 
             let metadata_signer_seeds = &[
                 b"spl_cat_token".as_ref(),
@@ -238,10 +235,7 @@ impl Initialize<'_> {
         }
 
         // Storing the BumpSeed for the Wormhole Emitter
-        ctx.accounts.wormhole_emitter.bump = *ctx
-            .bumps
-            .get("wormhole_emitter")
-            .ok_or(ErrorFactory::BumpNotFound)?;
+        ctx.accounts.wormhole_emitter.bump = ctx.bumps.wormhole_emitter;
 
         // Now We will send a message to initialize the Sequence Tracker for future messages
         // by posting a message to the Wormhole program.
@@ -287,10 +281,7 @@ impl Initialize<'_> {
                         &[
                             SEED_PREFIX_SENT,
                             &wormhole::INITIAL_SEQUENCE.to_le_bytes()[..],
-                            &[*ctx
-                                .bumps
-                                .get("wormhole_message")
-                                .ok_or(ErrorFactory::BumpNotFound)?],
+                            &[ctx.bumps.wormhole_message],
                         ],
                         &[wormhole::SEED_PREFIX_EMITTER, &[wormhole_emitter.bump]],
                     ],

@@ -6,6 +6,7 @@ use crate::{
     utils_cat::*,
 };
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program;
 use anchor_spl::{
     associated_token::AssociatedToken,
     token::{transfer, Mint, Token, TokenAccount, Transfer},
@@ -15,7 +16,7 @@ use wormhole_anchor_sdk::wormhole;
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct BridgeOutParams {
     pub amount: u64,
-    pub recipient_chain: u16,
+    pub recipient_chain: u64,
     pub recipient: [u8; 32],
 }
 #[derive(Accounts)]
@@ -149,10 +150,7 @@ impl BridgeOut<'_> {
             to: ctx.accounts.token_mint_ata.to_account_info(),
             authority: ctx.accounts.token_mint_ata.to_account_info(),
         };
-        let bump = *ctx
-            .bumps
-            .get("token_mint_ata")
-            .ok_or(ErrorFactory::BumpNotFound)?;
+        let bump = ctx.bumps.token_mint_ata;
 
         let cpi_signer_seeds = &[
             b"cat_sol_proxy".as_ref(),
@@ -180,10 +178,10 @@ impl BridgeOut<'_> {
             token_decimals: ctx.accounts.token_mint.decimals,
             source_token_address: ctx.program_id.to_bytes(),
             source_user_address: ctx.accounts.token_user_ata.key().to_bytes(),
-            source_token_chain: wormhole::CHAIN_ID_SOLANA,
+            source_token_chain: U256::from(u64::from(wormhole::CHAIN_ID_SOLANA)),
             dest_token_address: ctx.accounts.foreign_emitter.address,
             dest_user_address: params.recipient,
-            dest_token_chain: params.recipient_chain
+            dest_token_chain: U256::from(params.recipient_chain),
         };
 
         // Serialize the payload
@@ -212,10 +210,7 @@ impl BridgeOut<'_> {
                     &[
                         SEED_PREFIX_SENT,
                         &ctx.accounts.wormhole_sequence.next_value().to_le_bytes()[..],
-                        &[*ctx
-                            .bumps
-                            .get("wormhole_message")
-                            .ok_or(ErrorFactory::BumpNotFound)?],
+                        &[ctx.bumps.wormhole_message],
                     ],
                     &[wormhole::SEED_PREFIX_EMITTER, &[wormhole_emitter.bump]],
                 ],
