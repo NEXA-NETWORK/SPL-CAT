@@ -13,9 +13,14 @@ use crate::{
     state::{Config, ForeignEmitter, Received}
 };
 
+#[derive(Clone, AnchorDeserialize, AnchorSerialize)]
+pub struct BridgeInParams {
+    pub sender_chain: u64,
+    pub vaa_hash: [u8; 32],
+}
 
 #[derive(Accounts)]
-#[instruction(vaa_hash: [u8; 32])]
+#[instruction(params: BridgeInParams)]
 pub struct BridgeIn<'info> {
     /// Owner will initialize an account that tracks his own payloads
     #[account(mut)]
@@ -63,7 +68,7 @@ pub struct BridgeIn<'info> {
     #[account(
         seeds = [
             wormhole::SEED_PREFIX_POSTED_VAA,
-            &vaa_hash
+            &params.vaa_hash
         ],
         bump,
         seeds::program = wormhole_program
@@ -88,7 +93,7 @@ pub struct BridgeIn<'info> {
     #[account(
         seeds = [
             ForeignEmitter::SEED_PREFIX,
-            &posted.emitter_chain().to_le_bytes()[..]
+            &params.sender_chain.to_le_bytes()[..]
         ],
         bump,
         constraint = foreign_emitter.verify(posted.emitter_address()) @ ErrorFactory::InvalidForeignEmitter
@@ -104,13 +109,14 @@ pub struct BridgeIn<'info> {
 
 
 impl BridgeIn<'_> {
-    pub fn bridge_in(ctx: Context<BridgeIn>, vaa_hash: [u8; 32]) -> Result<()> {
+    pub fn bridge_in(ctx: Context<BridgeIn>, params: BridgeInParams) -> Result<()> {
         let posted_message = &ctx.accounts.posted;
 
         if let CATSOLStructs::CrossChainPayload { payload } = posted_message.data() {
+            msg!("Payload: {:?}", payload);
             let dest_chain: u64 = payload.dest_token_chain.into();
             require!(
-                dest_chain == u64::from(wormhole::CHAIN_ID_SOLANA),
+                dest_chain == CHAIN_SOLANA,
                 ErrorFactory::InvalidDestinationChain
             );
             
@@ -136,7 +142,7 @@ impl BridgeIn<'_> {
             let cpi_accounts = MintTo {
                 mint: ctx.accounts.token_mint.to_account_info(),
                 to: ctx.accounts.token_user_ata.to_account_info(),
-                authority: ctx.accounts.owner.to_account_info(),
+                authority: ctx.accounts.token_mint.to_account_info(),
             };
             let bump = ctx.bumps.token_mint;
 
@@ -152,7 +158,7 @@ impl BridgeIn<'_> {
 
             //Save batch ID, keccak256 hash and message payload.
             let received = &mut ctx.accounts.received;
-            received.wormhole_message_hash = vaa_hash;
+            received.wormhole_message_hash = params.vaa_hash;
 
             // Done
             Ok(())

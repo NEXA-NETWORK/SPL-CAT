@@ -19,7 +19,6 @@ import {
   parseSequenceFromLogSolana,
   postVaaSolanaWithRetry,
   getSignedVAAHash,
-  CHAINS,
   parseVaa,
   tryUint8ArrayToNative,
 } from '@certusone/wormhole-sdk';
@@ -34,6 +33,12 @@ import axios from "axios";
 import fs from "fs";
 import { exec } from 'child_process';
 import path from 'path';
+
+
+const CHAINS = {
+  ethereum: 1,
+  solana: 17,
+};
 
 function deployProgram(programName: string, cluster: string, wallet: string) {
   const scriptPath = path.resolve(process.cwd(), 'migrations/deploy.sh');
@@ -64,6 +69,7 @@ describe("cat_sol20", () => {
   const program = anchor.workspace.CatSol20 as Program<CatSol20>;
 
   let SPL_CAT_PID: PublicKey = program.programId;
+  console.log('Program ID: ', SPL_CAT_PID)
 
 
   const CORE_BRIDGE_PID = "Bridge1p5gheXUvJ6jGWGeCsgPKgnE3YgdGKRVCMY9o";
@@ -320,9 +326,10 @@ describe("cat_sol20", () => {
         ], SPL_CAT_PID)
 
         // Replace this with the Eth Contract
-        const ethContractAddress = "0xE1C6178A3A945087eAcE41F35c19042a53a9AFFE";
+        const ethContractAddress = "0xA94B7f0465E98609391C623d0560C5720a3f2D33";
         let targetEmitterAddress: string | number[] = getEmitterAddressEth(ethContractAddress);
         targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
+
 
         const [configAcc, _] = PublicKey.findProgramAddressSync([
           Buffer.from("config")
@@ -434,9 +441,18 @@ describe("cat_sol20", () => {
           SequenceTracker
         );
 
+        const emitterAddress = getEmitterAddressSolana(SPL_CAT_PID.toString());
+        console.log("Emitter Address: ", emitterAddress);
+        const SPLTokenAddress = Buffer.from(emitterAddress, 'hex');
+        console.log("SPL Token Address: ", SPLTokenAddress);
+
         // User's Ethereum address
         let userEthAddress = "0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1";
         let recipient = Array.from(tryNativeToUint8Array(userEthAddress, "ethereum"));
+
+        // Deployed Contract address
+        let evmDeployedContract = "0x86072CbFF48dA3C1F01824a6761A03F105BCC697";
+        let recipientContract = Array.from(tryNativeToUint8Array(evmDeployedContract, "ethereum"));
 
         // Parameters
         let amount = new anchor.BN("10000000000000000");
@@ -445,6 +461,7 @@ describe("cat_sol20", () => {
           amount,
           recipientChain,
           recipient,
+          recipientContract,
         }).accounts({
           owner: newOwner.publicKey,
           ataAuthority: newOwner.publicKey,
@@ -460,7 +477,7 @@ describe("cat_sol20", () => {
           ...wormholeAccounts,
         }).signers([newOwner])
 
-        const rpc = await method.rpc();
+        const rpc = await method.rpc()
         console.log("Your transaction signature", rpc);
 
         await new Promise((r) => setTimeout(r, 3000)); // Wait for tx to be confirmed
@@ -487,9 +504,6 @@ describe("cat_sol20", () => {
         VAA = vaaBytes.data.vaaBytes;
         console.log("VAA Bytes: ", vaaBytes.data);
 
-        const parseedVAA = parseVaa(Buffer.from(VAA, 'base64'))
-        console.log("Parsed VAA Hash", parseedVAA.hash.toString())
-
       } catch (e: any) {
         console.log(e);
       }
@@ -497,6 +511,7 @@ describe("cat_sol20", () => {
 
     it("Bridge In", async () => {
       try {
+        VAA = "AQAAAAABAATWvCrDwuuFGoNiQp5ABhnlIFhaxV5gNCNvxbkQFnTpFhAl+q3Y1dVydgUki1q8vYUBkvr5FpmVD/49dTZ/4ZsBZVInhAAAAAAAAgAAAAAAAAAAAAAAAKlLfwRl6YYJORxiPQVgxXIKPy0zAAAAAAAAAALIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJGE5yoAAMAAAAAAAAAAAAAAAAdBTjg3fW2vYEVibsioq7ihvEuXoAAAAAAAAAAAAAAACQ+L9qR58yDq0HRBGksOeUTqjJwQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABIYeqs64iL3H/beeA3jda9/CwdRjTuPcpO6lXm2RmxE2UPKgOjY4s4AZOGmNRWGP+gUW2DTJIeNUVPCr6sORBdAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAR"
         await postVaaSolanaWithRetry(
           provider.connection,
           async (tx) => {
@@ -542,7 +557,11 @@ describe("cat_sol20", () => {
           foreignChainId,
         ], SPL_CAT_PID)
 
-        const method = program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
+
+        const method = program.methods.bridgeIn({
+          vaaHash: Array.from(parsedVAA.hash),
+          senderChain: new anchor.BN(Number(payload.sourceTokenChain))
+        }).accounts({
           owner: newOwner.publicKey,
           ataAuthority: payload.destUserAddress,
           tokenUserAta: tokenUserATA,
@@ -557,18 +576,7 @@ describe("cat_sol20", () => {
           systemProgram: anchor.web3.SystemProgram.programId,
         }).signers([newOwner]);
 
-        const tx = await method.transaction();
-        tx.recentBlockhash = (await provider.connection.getLatestBlockhash()).blockhash;
-        tx.feePayer = KEYPAIR.publicKey;
-        const message = tx.compileMessage();
-
-        const fee = await provider.connection.getFeeForMessage(message, 'confirmed');
-        console.log("Transaction Fee: ", fee.value / LAMPORTS_PER_SOL);
-
-        const simulate = await provider.connection.simulateTransaction(tx);
-        console.log("Simulated Fee: ", simulate.value.unitsConsumed / LAMPORTS_PER_SOL);
-
-        const rpc = await method.rpc();
+        const rpc = await method.rpc({skipPreflight: true});
         console.log("Your transaction signature", rpc);
 
       } catch (e: any) {

@@ -233,6 +233,10 @@ describe("cat_sol20_proxy", () => {
       let userEthAddress = "0x90F8bf6A479f320ead074411a4B0e7944Ea8c9C1";
       let recipient = Array.from(tryNativeToUint8Array(userEthAddress, "ethereum"));
 
+       // Deployed Contract address
+       let evmDeployedContract = "0x86072CbFF48dA3C1F01824a6761A03F105BCC697";
+       let recipientContract = Array.from(tryNativeToUint8Array(evmDeployedContract, "ethereum"));
+
       // Parameters
 
       let amount = new anchor.BN(10000).mul(oneToken);
@@ -257,6 +261,7 @@ describe("cat_sol20_proxy", () => {
         amount,
         recipientChain,
         recipient,
+        recipientContract
       }).accounts({
         owner: KEYPAIR.publicKey,
         // Token Stuff
@@ -353,7 +358,10 @@ describe("cat_sol20_proxy", () => {
         foreignChainId,
       ], SPL_CAT_PROXY_PID)
 
-      const tx = await program.methods.bridgeIn(Array.from(parsedVAA.hash)).accounts({
+      const tx = program.methods.bridgeIn({
+        vaaHash: Array.from(parsedVAA.hash),
+        senderChain: new anchor.BN(Number(payload.sourceTokenChain))
+      }).accounts({
         owner: KEYPAIR.publicKey,
         tokenUserAta: tokenUserATA,
         tokenMintAta: tokenMintATA,

@@ -40,7 +40,7 @@ pub mod cat_sol20_proxy {
         BridgeOut::bridge_out(ctx, &params)
     }
 
-    pub fn bridge_in(ctx: Context<BridgeIn>, vaa_hash: [u8; 32]) -> Result<()> {
-        BridgeIn::bridge_in(ctx, vaa_hash)
+    pub fn bridge_in(ctx: Context<BridgeIn>, params: BridgeInParams) -> Result<()> {
+        BridgeIn::bridge_in(ctx, params)
     }
 }

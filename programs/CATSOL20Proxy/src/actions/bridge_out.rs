@@ -18,6 +18,7 @@ pub struct BridgeOutParams {
     pub amount: u64,
     pub recipient_chain: u64,
     pub recipient: [u8; 32],
+    pub recipient_contract: [u8; 32],
 }
 #[derive(Accounts)]
 #[instruction(params: BridgeOutParams)]
@@ -176,10 +177,10 @@ impl BridgeOut<'_> {
         let payload = CrossChainStruct {
             amount: U256::from(foreign_amount),
             token_decimals: ctx.accounts.token_mint.decimals,
-            source_token_address: ctx.program_id.to_bytes(),
+            source_token_address: ctx.accounts.wormhole_emitter.key().to_bytes(),
             source_user_address: ctx.accounts.token_user_ata.key().to_bytes(),
-            source_token_chain: U256::from(u64::from(wormhole::CHAIN_ID_SOLANA)),
-            dest_token_address: ctx.accounts.foreign_emitter.address,
+            source_token_chain: U256::from(CHAIN_SOLANA),
+            dest_token_address: params.recipient_contract,
             dest_user_address: params.recipient,
             dest_token_chain: U256::from(params.recipient_chain),
         };
