@@ -359,8 +359,7 @@ describe("cat_sol20_proxy", () => {
       ], SPL_CAT_PROXY_PID)
 
       const tx = program.methods.bridgeIn({
-        vaaHash: Array.from(parsedVAA.hash),
-        senderChain: new anchor.BN(Number(payload.sourceTokenChain))
+        vaaHash: Array.from(parsedVAA.hash)
       }).accounts({
         owner: KEYPAIR.publicKey,
         tokenUserAta: tokenUserATA,

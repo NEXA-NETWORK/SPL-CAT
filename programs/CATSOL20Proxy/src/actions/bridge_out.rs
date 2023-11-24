@@ -179,7 +179,7 @@ impl BridgeOut<'_> {
             token_decimals: ctx.accounts.token_mint.decimals,
             source_token_address: ctx.accounts.wormhole_emitter.key().to_bytes(),
             source_user_address: ctx.accounts.token_user_ata.key().to_bytes(),
-            source_token_chain: U256::from(CHAIN_SOLANA),
+            source_token_chain: U256::from(CONVENTIONAL_SOLANA_ID), // Solana's Chain ID
             dest_token_address: params.recipient_contract,
             dest_user_address: params.recipient,
             dest_token_chain: U256::from(params.recipient_chain),

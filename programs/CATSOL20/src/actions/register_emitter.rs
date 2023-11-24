@@ -2,8 +2,9 @@ use anchor_lang::prelude::*;
 use crate::{
     error::ErrorFactory,
     state::{Config, ForeignEmitter},
-    constants::*,
 };
+use wormhole_anchor_sdk::wormhole;
+
 
 #[derive(Clone, AnchorSerialize, AnchorDeserialize)]
 pub struct RegisterEmitterParams {
@@ -49,7 +50,7 @@ impl RegisterEmitter<'_> {
         // Foreign emitter cannot share the same Wormhole Chain ID as the
         // Solana Wormhole program's. And cannot register a zero address.
         require!(
-            chain > 0 && chain != CHAIN_SOLANA && !address.iter().all(|&x| x == 0),
+            chain > 0 && chain != wormhole::CHAIN_ID_SOLANA as u64 as u64 && !address.iter().all(|&x| x == 0),
             ErrorFactory::InvalidForeignEmitter,
         );
 

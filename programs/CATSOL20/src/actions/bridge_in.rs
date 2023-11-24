@@ -15,7 +15,6 @@ use crate::{
 
 #[derive(Clone, AnchorDeserialize, AnchorSerialize)]
 pub struct BridgeInParams {
-    pub sender_chain: u64,
     pub vaa_hash: [u8; 32],
 }
 
@@ -93,7 +92,7 @@ pub struct BridgeIn<'info> {
     #[account(
         seeds = [
             ForeignEmitter::SEED_PREFIX,
-            &params.sender_chain.to_le_bytes()[..]
+            &posted.emitter_chain().to_le_bytes()[..]
         ],
         bump,
         constraint = foreign_emitter.verify(posted.emitter_address()) @ ErrorFactory::InvalidForeignEmitter
@@ -116,7 +115,7 @@ impl BridgeIn<'_> {
             msg!("Payload: {:?}", payload);
             let dest_chain: u64 = payload.dest_token_chain.into();
             require!(
-                dest_chain == CHAIN_SOLANA,
+                dest_chain == wormhole::CHAIN_ID_SOLANA as u64,
                 ErrorFactory::InvalidDestinationChain
             );
             

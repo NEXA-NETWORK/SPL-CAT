@@ -20,6 +20,7 @@ import {
   postVaaSolanaWithRetry,
   getSignedVAAHash,
   parseVaa,
+  CHAINS,
   tryUint8ArrayToNative,
 } from '@certusone/wormhole-sdk';
 import {
@@ -35,10 +36,6 @@ import { exec } from 'child_process';
 import path from 'path';
 
 
-const CHAINS = {
-  ethereum: 1,
-  solana: 17,
-};
 
 function deployProgram(programName: string, cluster: string, wallet: string) {
   const scriptPath = path.resolve(process.cwd(), 'migrations/deploy.sh');
@@ -326,6 +323,7 @@ describe("cat_sol20", () => {
         ], SPL_CAT_PID)
 
         // Replace this with the Eth Contract
+        // THIS WILL BE A DIAMOND ADDRESS
         const ethContractAddress = "0xA94B7f0465E98609391C623d0560C5720a3f2D33";
         let targetEmitterAddress: string | number[] = getEmitterAddressEth(ethContractAddress);
         targetEmitterAddress = Array.from(Buffer.from(targetEmitterAddress, "hex"))
@@ -559,8 +557,7 @@ describe("cat_sol20", () => {
 
 
         const method = program.methods.bridgeIn({
-          vaaHash: Array.from(parsedVAA.hash),
-          senderChain: new anchor.BN(Number(payload.sourceTokenChain))
+          vaaHash: Array.from(parsedVAA.hash)
         }).accounts({
           owner: newOwner.publicKey,
           ataAuthority: payload.destUserAddress,
